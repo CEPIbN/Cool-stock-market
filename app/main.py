@@ -1,6 +1,10 @@
 from fastapi import FastAPI
-from app.v1.routes import router as v1_router
+from fastapi.responses import HTMLResponse
 
-app = FastAPI(title="Versioned FastAPI App")
+app = FastAPI()
 
-app.include_router(v1_router, prefix="/api/v1", tags=["v1"])
+
+@app.get("/")
+def read_root():
+    html_content = "<h2>Hello METANIT.COM!</h2>"
+    return HTMLResponse(content=html_content)
