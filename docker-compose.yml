@@ -1,12 +1,30 @@
 version: "3.9"
 
 services:
+  db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_DB: market-db
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: 11111111
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
   api:
     build:
       context: .
       dockerfile: compose/backend/Dockerfile
     ports:
       - "8000:8000"
+    depends_on:
+      - db
     volumes:
-      - ./app:/app
+      - ./app:/app/app
+    environment:
+      DATABASE_URL: postgresql://admin:11111111@db:5432/market-db
     restart: always
+
+volumes:
+  postgres_data:

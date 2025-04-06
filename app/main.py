@@ -1,8 +1,15 @@
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
+from app.db import Base, engine
+from app.models import models
+
+#Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
+@app.on_event("startup")
+def startup_event():
+    Base.metadata.create_all(bind=engine)
 
 @app.get("/")
 def read_root():
