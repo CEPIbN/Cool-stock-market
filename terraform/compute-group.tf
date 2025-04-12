@@ -1,24 +1,8 @@
-resource "yandex_iam_service_account" "compute-group-account" {
-  name        = "compute-group-account"
-  description = "Сервисный аккаунт для управления группой ВМ."
-}
-
-resource "yandex_resourcemanager_folder_iam_member" "compute-admin" {
-  folder_id = "b1gr31hq6bsesq941vg8"
-  role      = "compute.admin"
-  member    = "serviceAccount:${yandex_iam_service_account.compute-group-account.id}"
-}
-
-resource "yandex_resourcemanager_folder_iam_member" "load-balancer-admin" {
-  folder_id = "b1gr31hq6bsesq941vg8"
-  role      = "load-balancer.admin"
-  member    = "serviceAccount:${yandex_iam_service_account.compute-group-account.id}"
-}
-
+# 1. Создание группы ВМ
 resource "yandex_compute_instance_group" "ig-1" {
-  name                = "project-balancer"
+  name                = "project-instance-group"
   folder_id           = "b1gr31hq6bsesq941vg8"
-  service_account_id  = "${yandex_iam_service_account.compute-group-account.id}"
+  service_account_id  = "ajedk3jflri3hp4f3sc7"
   deletion_protection = false
   instance_template {
     platform_id = "standard-v3"
@@ -35,8 +19,9 @@ resource "yandex_compute_instance_group" "ig-1" {
     }
 
     network_interface {
-      network_id         = yandex_vpc_network.mynet.id
-      subnet_ids         = [yandex_vpc_subnet.mysubnet.id]
+      network_id         = yandex_vpc_network.project-net.id
+      subnet_ids         = [yandex_vpc_subnet.project-subnet-d.id]
+      nat = true
     }
 
     metadata = {
@@ -46,7 +31,7 @@ resource "yandex_compute_instance_group" "ig-1" {
 
   scale_policy {
     fixed_scale {
-      size = 2
+      size = 3
     }
   }
 
@@ -56,7 +41,7 @@ resource "yandex_compute_instance_group" "ig-1" {
 
   deploy_policy {
     max_unavailable = 1
-    max_expansion   = 0
+    max_expansion   = 1
   }
 
   load_balancer {
@@ -65,6 +50,7 @@ resource "yandex_compute_instance_group" "ig-1" {
   }
 }
 
+# 2. Создание сетевого балансировщика
 resource "yandex_lb_network_load_balancer" "lb-1" {
   name = "network-load-balancer-1"
 
@@ -72,6 +58,7 @@ resource "yandex_lb_network_load_balancer" "lb-1" {
     name = "network-load-balancer-1-listener"
     port = 80
     external_address_spec {
+      address = yandex_vpc_address.addr.external_ipv4_address[0].address
       ip_version = "ipv4"
     }
   }
@@ -80,10 +67,9 @@ resource "yandex_lb_network_load_balancer" "lb-1" {
     target_group_id = yandex_compute_instance_group.ig-1.load_balancer.0.target_group_id
 
     healthcheck {
-      name = "http"
-      http_options {
-        port = 80
-        path = "/index.html"
+      name = "tcp"
+      tcp_options {
+        port = 22
       }
     }
   }

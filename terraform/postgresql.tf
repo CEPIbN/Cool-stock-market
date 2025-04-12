@@ -1,6 +1,7 @@
+# 1. Создание группы безопастности
 resource "yandex_vpc_security_group" "pgsql-sg" {
   name       = "pgsql-sg"
-  network_id = yandex_vpc_network.mynet.id
+  network_id = yandex_vpc_network.project-net.id
 
   ingress {
     description    = "PostgreSQL"
@@ -10,11 +11,11 @@ resource "yandex_vpc_security_group" "pgsql-sg" {
   }
 }
 
-# 4. Создаем кластер PostgreSQL
-resource "yandex_mdb_postgresql_cluster" "mypg" {
-  name                = "mypg"
-  environment         = "PRESTABLE"
-  network_id          = yandex_vpc_network.mynet.id
+# 2. Создание кластер PostgreSQL
+resource "yandex_mdb_postgresql_cluster" "project-pg" {
+  name                = "project-pg"
+  environment         = "PRODUCTION"
+  network_id          = yandex_vpc_network.project-net.id
   security_group_ids  = [yandex_vpc_security_group.pgsql-sg.id]
   deletion_protection = false
 
@@ -23,29 +24,29 @@ resource "yandex_mdb_postgresql_cluster" "mypg" {
     resources {
       resource_preset_id = "s2.micro"
       disk_type_id       = "network-ssd"
-      disk_size          = 20
+      disk_size          = 50
     }
   }
 
   host {
     zone      = "ru-central1-d"
-    name      = "mypg-host-d"
-    subnet_id = yandex_vpc_subnet.mysubnet.id
+    name      = "project-pg-host-d"
+    subnet_id = yandex_vpc_subnet.project-subnet-d.id
   }
 }
 
-# 5. Создаем пользователя
-resource "yandex_mdb_postgresql_user" "user1" {
-  cluster_id = yandex_mdb_postgresql_cluster.mypg.id
-  name       = "user1"
-  password   = "user1user1"
-  depends_on = [yandex_mdb_postgresql_cluster.mypg]
+# 3. Создание пользователя
+resource "yandex_mdb_postgresql_user" "project" {
+  cluster_id = yandex_mdb_postgresql_cluster.project-pg.id
+  name       = "project"
+  password   = "MySecurePassword123!"
+  depends_on = [yandex_mdb_postgresql_cluster.project-pg]
 }
 
-# 6. Создаем БД 
-resource "yandex_mdb_postgresql_database" "db1" {
-  cluster_id = yandex_mdb_postgresql_cluster.mypg.id
-  name       = "db1"
-  owner      = "user1"
-  depends_on = [yandex_mdb_postgresql_user.user1]
+# 4. Создание БД 
+resource "yandex_mdb_postgresql_database" "database" {
+  cluster_id = yandex_mdb_postgresql_cluster.project-pg.id
+  name       = "project-db"
+  owner      = yandex_mdb_postgresql_user.project.name
+  depends_on = [yandex_mdb_postgresql_user.project]
 }
