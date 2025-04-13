@@ -18,9 +18,21 @@ resource "yandex_mdb_postgresql_cluster" "project-db-cluster" {
 
   host {
     zone             = "ru-central1-d"
-    name             = "project-host-db"
+    name             = "project-master-host"
     subnet_id        = yandex_vpc_subnet.project-subnet-d.id
-    assign_public_ip = true
+    assign_public_ip = false
+  }
+  host {
+    zone             = "ru-central1-a"
+    name             = "project-host-a"
+    subnet_id        = yandex_vpc_subnet.project-subnet-a.id
+    assign_public_ip = false
+  }
+  host {
+    zone             = "ru-central1-b"
+    name             = "project-host-b"
+    subnet_id        = yandex_vpc_subnet.project-subnet-b.id
+    assign_public_ip = false
   }
 }
 
