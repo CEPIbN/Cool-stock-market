@@ -5,3 +5,4 @@ class ResponseUser(BaseModel):
     id : str
     name : str
     role : str
+    api_key : str

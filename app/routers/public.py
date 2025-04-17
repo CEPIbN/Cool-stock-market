@@ -28,12 +28,15 @@ def register_user(data: NewUser,
     user = User()
     user.name = data.name
     user.role = UserRole.USER
-    user.id = str(uuid.uuid4())
+    new_uuid = uuid.uuid4()
+    user.id = new_uuid
+    user.api_key = f"key-{new_uuid}"
     db.add(user)
     db.commit()
-    return ResponseUser(id=user.id,
+    return ResponseUser(id=f"{new_uuid}",
                         name=user.name,
-                        role=user.role)
+                        role=user.role,
+                        api_key=user.api_key)
 
 
 @router.get("/instrument",  response_model=list[InstrumentResponse])
