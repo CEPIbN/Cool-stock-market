@@ -1,0 +1,18 @@
+
+#cloud-config
+package_update: true
+packages:
+  - docker.io
+  - docker-compose
+
+write_files:
+  - path: /home/ubuntu/docker-compose.yml
+    permissions: '0644'
+    content: |
+      ${docker_compose}
+
+runcmd:
+  - systemctl start docker
+  - docker login -u oauth -p ${ycr_token} cr.yandex
+  - cd /home/ubuntu
+  - docker-compose up -d

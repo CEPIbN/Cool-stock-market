@@ -21,3 +21,4 @@ venv/
 *.tfvars
 *.tfvars.json
 .terraform.lock.hcl
+terraform/terraform.tfvars
