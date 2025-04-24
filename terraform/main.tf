@@ -138,4 +138,34 @@ resource "yandex_compute_instance_group" "web_group" {
   allocation_policy {
     zones = ["ru-central1-a", "ru-central1-b", "ru-central1-d"]
   }
+
+  deploy_policy {
+     max_unavailable = 1
+     max_expansion   = 1
+   }
 }
+
+resource "yandex_lb_network_load_balancer" "market_lb" {
+  name = "market-lb"
+
+  listener {
+    name = "http"
+    port = 80
+    target_port = 80
+    protocol = "tcp"
+  }
+
+  attached_target_group {
+    target_group_id = yandex_compute_instance_group.web_group.load_balancer_target_group_id
+
+    healthcheck {
+      name = "tcp"
+      tcp_options {
+        port = 80
+      }
+    }
+  }
+
+  depends_on = [yandex_compute_instance_group.web_group]
+}
+
