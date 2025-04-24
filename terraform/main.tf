@@ -39,10 +39,10 @@ resource "yandex_vpc_subnet" "subnet-d" {
 }
 
 resource "yandex_vpc_address" "addr" {
-   name = "project-ip"
-   external_ipv4_address {
-     zone_id = "ru-central1-d"
-   }
+  name = "project-ip"
+  external_ipv4_address {
+    zone_id = "ru-central1-d"
+  }
 }
 
 resource "yandex_mdb_postgresql_cluster" "pg_cluster" {
@@ -75,16 +75,16 @@ resource "yandex_mdb_postgresql_cluster" "pg_cluster" {
   }
 }
 
+resource "yandex_mdb_postgresql_user" "admin" {
+  cluster_id = yandex_mdb_postgresql_cluster.pg_cluster.id
+  name       = "market-owner"
+  password   = var.db_password
+}
+
 resource "yandex_mdb_postgresql_database" "market-db" {
   cluster_id = yandex_mdb_postgresql_cluster.pg_cluster.id
   name       = "marketdb"
-  owner      = "admin"
-}
-
-resource "yandex_mdb_postgresql_user" "admin" {
-  cluster_id = yandex_mdb_postgresql_cluster.pg_cluster.id
-  name       = "admin"
-  password   = var.db_password
+  owner      = "market-owner"
 }
 
 data "yandex_compute_image" "ubuntu" {
@@ -97,7 +97,7 @@ resource "yandex_compute_instance_group" "web_group" {
   folder_id          = var.folder_id
 
   instance_template {
-    platform_id = "standard-v1"
+    platform_id = "standard-v2"
 
     resources {
       cores  = 2
@@ -121,13 +121,13 @@ resource "yandex_compute_instance_group" "web_group" {
 
     metadata = {
       user-data = templatefile("${path.module}/cloud-init.tftpl", {
-        ycr_token     = var.ycr_token,
-        db_user       = "admin",
-        db_password   = var.db_password,
-        db_name       = "marketdb",
-        db_host       = yandex_mdb_postgresql_cluster.pg_cluster.host[0].fqdn,
+        ycr_token   = var.ycr_token,
+        db_user     = "market-owner",
+        db_password = var.db_password,
+        db_name     = "marketdb",
+        db_host     = yandex_mdb_postgresql_cluster.pg_cluster.host[0].fqdn,
         docker_compose = templatefile("${path.module}/docker-compose.tftpl", {
-          db_user     = "admin",
+          db_user     = "market-owner",
           db_password = var.db_password,
           db_name     = "marketdb",
           db_host     = yandex_mdb_postgresql_cluster.pg_cluster.host[0].fqdn,
@@ -148,44 +148,44 @@ resource "yandex_compute_instance_group" "web_group" {
   }
 
   deploy_policy {
-     max_unavailable = 1
-     max_expansion   = 1
+    max_unavailable = 1
+    max_expansion   = 1
   }
 
   load_balancer {
-     target_group_name = "market-balancer-target-group"
-   }
+    target_group_name = "market-balancer-target-group"
+  }
 }
 
 # load balancer
 resource "yandex_lb_network_load_balancer" "lb-1" {
-   name = "market-network-lb"
+  name = "market-network-lb"
 
-   listener {
-     name = "http-listener"
-     port = 80
-     external_address_spec {
-       address    = yandex_vpc_address.addr.external_ipv4_address[0].address
-       ip_version = "ipv4"
-     }
-   }
+  listener {
+    name = "http-listener"
+    port = 80
+    external_address_spec {
+      address    = yandex_vpc_address.addr.external_ipv4_address[0].address
+      ip_version = "ipv4"
+    }
+  }
 
-   attached_target_group {
-     target_group_id = yandex_compute_instance_group.web_group.load_balancer[0].target_group_id
+  attached_target_group {
+    target_group_id = yandex_compute_instance_group.web_group.load_balancer[0].target_group_id
 
-     healthcheck {
-       name = "tcp-healthcheck"
-       tcp_options {
-         port = 80
-       }
-       interval = 2
-       timeout  = 1
-     }
-   }
+    healthcheck {
+      name = "tcp-healthcheck"
+      tcp_options {
+        port = 80
+      }
+      interval = 2
+      timeout  = 1
+    }
+  }
 }
 
 output "lb_external_ip" {
-   value = yandex_vpc_address.addr.external_ipv4_address[0].address
+  value = yandex_vpc_address.addr.external_ipv4_address[0].address
 }
 
 
