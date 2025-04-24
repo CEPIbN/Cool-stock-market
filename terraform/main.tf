@@ -31,8 +31,8 @@ resource "yandex_vpc_subnet" "subnet-b" {
   v4_cidr_blocks = ["10.0.2.0/24"]
 }
 
-resource "yandex_vpc_subnet" "subnet-c" {
-  name           = "subnet-c"
+resource "yandex_vpc_subnet" "subnet-d" {
+  name           = "subnet-d"
   zone           = "ru-central1-d"
   network_id     = yandex_vpc_network.main.id
   v4_cidr_blocks = ["10.0.3.0/24"]
@@ -64,11 +64,11 @@ resource "yandex_mdb_postgresql_cluster" "pg_cluster" {
 
   host {
     zone      = "ru-central1-d"
-    subnet_id = yandex_vpc_subnet.subnet-c.id
+    subnet_id = yandex_vpc_subnet.subnet-d.id
   }
 }
 
-resource "yandex_mdb_postgresql_database" "marketdb" {
+resource "yandex_mdb_postgresql_database" "market-db" {
   cluster_id = yandex_mdb_postgresql_cluster.pg_cluster.id
   name       = "marketdb"
   owner      = "admin"
@@ -107,7 +107,7 @@ resource "yandex_compute_instance_group" "web_group" {
       subnet_ids = [
         yandex_vpc_subnet.subnet-a.id,
         yandex_vpc_subnet.subnet-b.id,
-        yandex_vpc_subnet.subnet-c.id,
+        yandex_vpc_subnet.subnet-d.id,
       ]
       nat = true
     }
@@ -146,89 +146,45 @@ resource "yandex_compute_instance_group" "web_group" {
    }
 }
 
-# Получаем список IP-адресов из instance group
-output "web_instance_ips" {
-  value = [for i in yandex_compute_instance_group.web_group.instances : i.network_interface[0].ip_address]
-}
+resource "yandex_lb_target_group" "web_targets" {
+  name = "web-targets"
 
-data "yandex_compute_instance_group" "web_group_data" {
-  instance_group_id = yandex_compute_instance_group.web_group.id
-  depends_on = [yandex_compute_instance_group.web_group]
-}
+  target {
+    subnet_id  = yandex_vpc_subnet.subnet-a.id
+    address    = yandex_compute_instance_group.web_group.instances[0].network_interface[0].ip_address
+  }
 
-resource "yandex_alb_target_group" "alb_group" {
-  name = "web-alb-group"
+  target {
+    subnet_id  = yandex_vpc_subnet.subnet-b.id
+    address    = yandex_compute_instance_group.web_group.instances[1].network_interface[0].ip_address
+  }
 
-  dynamic "target" {
-    for_each = toset(yandex_compute_instance_group.web_group.instances.*.network_interface[0].ip_address)
-    content {
-      subnet_id  = element([
-        yandex_vpc_subnet.subnet-a.id,
-        yandex_vpc_subnet.subnet-b.id,
-        yandex_vpc_subnet.subnet-c.id
-      ], index(yandex_compute_instance_group.web_group.instances.*.network_interface[0].ip_address, target.value))
-      ip_address = target.value
-    }
+  target {
+    subnet_id  = yandex_vpc_subnet.subnet-d.id
+    address    = yandex_compute_instance_group.web_group.instances[2].network_interface[0].ip_address
   }
 }
 
-resource "yandex_alb_backend_group" "web_backend_group" {
-  name = "web-backend-group"
-  http_backend {
-    name             = "web-backend"
-    port             = 80
-    target_group_ids = [yandex_alb_target_group.alb_group.id]
-    load_balancing_config {
-      panic_threshold = 50
-    }
-    healthcheck {
-      timeout  = "1s"
-      interval = "5s"
-      http_healthcheck {
-        path = "/"
-      }
-    }
-  }
-}
-
-resource "yandex_alb_http_router" "web_router" {
-  name = "web-router"
-}
-
-resource "yandex_alb_virtual_host" "web_host" {
-  name           = "web-host"
-  http_router_id = yandex_alb_http_router.web_router.id
-  route {
-    name = "default-route"
-    http_route {
-      http_route_action {
-        backend_group_id = yandex_alb_backend_group.web_backend_group.id
-      }
-    }
-  }
-}
-
-resource "yandex_alb_load_balancer" "web_alb" {
-  name        = "web-alb"
-  network_id  = yandex_vpc_network.main.id
-
-  allocation_policy {
-    location {
-      zone_id   = "ru-central1-a"
-      subnet_id = yandex_vpc_subnet.subnet-a.id
-    }
-  }
+resource "yandex_lb_network_load_balancer" "web_nlb" {
+  name       = "web-nlb"
+  network_id = yandex_vpc_network.main.id
 
   listener {
-    name = "http"
-    endpoint {
-      address {
-        external_ipv4_address {}
-      }
-      ports = [80]
+    name = "listener-80"
+    port = 80
+    external_address_spec {
+      ip_version = "IPV4"
     }
-    http {
-      router_id = yandex_alb_http_router.web_router.id
+  }
+
+  attached_target_group {
+    target_group_id = yandex_lb_target_group.web_targets.id
+
+    healthcheck {
+      name = "tcp-health"
+      tcp_options {
+        port = 80
+      }
     }
   }
 }
