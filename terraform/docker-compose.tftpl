@@ -2,7 +2,9 @@
 version: '3'
 services:
   app:
-    image: cr.yandex/your-registry-id/your-image-name:latest
+    image: cr.yandex/${image_path}:latest
+    ports:
+      - "80:8000"
     environment:
       - DATABASE_URL=postgresql://${db_user}:${db_password}@${db_host}:6432/${db_name}
     restart: always
