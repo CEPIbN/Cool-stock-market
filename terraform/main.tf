@@ -38,6 +38,13 @@ resource "yandex_vpc_subnet" "subnet-d" {
   v4_cidr_blocks = ["10.0.3.0/24"]
 }
 
+resource "yandex_vpc_address" "addr" {
+   name = "project-ip"
+   external_ipv4_address {
+     zone_id = "ru-central1-d"
+   }
+}
+
 resource "yandex_mdb_postgresql_cluster" "pg_cluster" {
   name        = "my-pg-cluster"
   environment = "PRODUCTION"
@@ -143,49 +150,42 @@ resource "yandex_compute_instance_group" "web_group" {
   deploy_policy {
      max_unavailable = 1
      max_expansion   = 1
+  }
+
+  load_balancer {
+     target_group_name = "market-balancer-target-group"
    }
 }
 
-resource "yandex_lb_target_group" "web_targets" {
-  name = "web-targets"
+# load balancer
+resource "yandex_lb_network_load_balancer" "lb-1" {
+   name = "market-network-lb"
 
-  target {
-    subnet_id  = yandex_vpc_subnet.subnet-a.id
-    address    = yandex_compute_instance_group.web_group.instances[0].network_interface[0].ip_address
-  }
+   listener {
+     name = "http-listener"
+     port = 80
+     external_address_spec {
+       address    = yandex_vpc_address.addr.external_ipv4_address[0].address
+       ip_version = "ipv4"
+     }
+   }
 
-  target {
-    subnet_id  = yandex_vpc_subnet.subnet-b.id
-    address    = yandex_compute_instance_group.web_group.instances[1].network_interface[0].ip_address
-  }
+   attached_target_group {
+     target_group_id = yandex_compute_instance_group.web_group.load_balancer[0].target_group_id
 
-  target {
-    subnet_id  = yandex_vpc_subnet.subnet-d.id
-    address    = yandex_compute_instance_group.web_group.instances[2].network_interface[0].ip_address
-  }
+     healthcheck {
+       name = "tcp-healthcheck"
+       tcp_options {
+         port = 80
+       }
+       interval = 2
+       timeout  = 1
+     }
+   }
 }
 
-resource "yandex_lb_network_load_balancer" "web_nlb" {
-  name       = "web-nlb"
-
-  listener {
-    name = "listener-80"
-    port = 80
-    external_address_spec {
-      ip_version = "IPV4"
-    }
-  }
-
-  attached_target_group {
-    target_group_id = yandex_lb_target_group.web_targets.id
-
-    healthcheck {
-      name = "tcp-health"
-      tcp_options {
-        port = 80
-      }
-    }
-  }
+output "lb_external_ip" {
+   value = yandex_vpc_address.addr.external_ipv4_address[0].address
 }
 
 
