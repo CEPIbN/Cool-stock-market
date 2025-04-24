@@ -167,7 +167,6 @@ resource "yandex_lb_target_group" "web_targets" {
 
 resource "yandex_lb_network_load_balancer" "web_nlb" {
   name       = "web-nlb"
-  network_id = yandex_vpc_network.main.id
 
   listener {
     name = "listener-80"
