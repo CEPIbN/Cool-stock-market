@@ -86,7 +86,9 @@ resource "yandex_mdb_postgresql_user" "admin" {
 resource "yandex_mdb_postgresql_database" "market-db" {
   cluster_id = yandex_mdb_postgresql_cluster.pg_cluster.id
   name       = "marketdb"
-  owner      = "market-owner"
+  owner      = yandex_mdb_postgresql_user.admin.name
+
+  depends_on = [yandex_mdb_postgresql_user.admin]
 }
 
 data "yandex_compute_image" "ubuntu" {
@@ -97,6 +99,9 @@ resource "yandex_compute_instance_group" "web_group" {
   name               = "web-group"
   service_account_id = var.sa_id
   folder_id          = var.folder_id
+
+  depends_on = [yandex_mdb_postgresql_user.admin,
+  yandex_mdb_postgresql_database.market-db]
 
   instance_template {
     platform_id = "standard-v2"
@@ -172,6 +177,8 @@ resource "yandex_lb_network_load_balancer" "lb-1" {
       timeout  = 1
     }
   }
+
+  depends_on = [yandex_vpc_address.addr]
 }
 
 output "lb_external_ip" {
@@ -180,9 +187,9 @@ output "lb_external_ip" {
 
 locals {
   raw_docker_compose = templatefile("${path.module}/docker-compose.tftpl", {
-    db_user     = "market-owner",
+    db_user     = yandex_mdb_postgresql_user.admin.name,
     db_password = var.db_password,
-    db_name     = "marketdb",
+    db_name     = yandex_mdb_postgresql_database.market-db.name,
     db_host     = yandex_mdb_postgresql_cluster.pg_cluster.host[0].fqdn,
     image_path  = var.ycr_image_path
   })
