@@ -5,9 +5,9 @@ services:
     image: postgres:15
     restart: always
     environment:
-      POSTGRES_DB: market-db
+      POSTGRES_DB: market_db
       POSTGRES_USER: admin
-      POSTGRES_PASSWORD: The-ManWho$oldTheWorld
+      POSTGRES_PASSWORD: The_ManWhoS0ldTheWor1d
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -24,7 +24,7 @@ services:
     volumes:
       - ./app:/app/app
     environment:
-      DATABASE_URL: postgresql://admin:The-ManWho$oldTheWorld@db:5432/market-db
+      DATABASE_URL: postgresql://admin:The_ManWhoS0ldTheWor1d@db:5432/market_db
     restart: always
 
 volumes:

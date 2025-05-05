@@ -24,3 +24,5 @@ terraform/
 #init
 
 *.ini
+
+!alembic.ini
