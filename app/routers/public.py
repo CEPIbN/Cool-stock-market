@@ -3,7 +3,7 @@ from fastapi.params import Query
 from fastapi import Depends
 import uuid
 
-
+from app.DTO.Response.HTTPValidationError import HTTPValidationError
 from app.DTO.Response.ResponseInstrument import InstrumentResponse
 from app.models.models import User, Instrument
 from app.DTO.Request.NewUser import NewUser
@@ -20,7 +20,8 @@ router = APIRouter(
     tags=["public"]
 )
 
-@router.post("/register",  response_model=ResponseUser)
+@router.post("/register",
+             response_model=ResponseUser)
 def register_user(data: NewUser,
                   db: Session = Depends(get_db)
 ):
@@ -33,7 +34,7 @@ def register_user(data: NewUser,
     user.api_key = f"key-{new_uuid}"
     db.add(user)
     db.commit()
-    return ResponseUser(id=f"{new_uuid}",
+    return ResponseUser(id=new_uuid,
                         name=user.name,
                         role=user.role,
                         api_key=user.api_key)
