@@ -25,4 +25,4 @@ terraform/terraform.tfvars
 *.tfstate
 *.tfstate.backup
 terraform/*.json
-*terraform/variables.tf
+

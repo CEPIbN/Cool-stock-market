@@ -58,7 +58,7 @@ resource "yandex_mdb_postgresql_cluster" "pg_cluster" {
     resources {
       resource_preset_id = "s2.micro"
       disk_size          = 30
-      disk_type_id       = "network-ssd"
+      disk_type_id       = "network-hdd"
     }
   }
   
