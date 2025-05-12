@@ -20,7 +20,7 @@ class User(Base):
     role = Column(Enum(UserRole, name="user_role"), nullable=False)
     api_key = Column(String, nullable=False)
 
-    balances = relationship("Balance", back_populates="user")
+    balances = relationship("Balance", back_populates="user", passive_deletes=True)
 
 
 class Instrument(Base):
@@ -52,7 +52,7 @@ class Balance(Base):
     ticker = Column(String, ForeignKey("instruments.ticker", ondelete="CASCADE"), primary_key=True)
     amount = Column(Integer, nullable=False, default=0)
 
-    user = relationship("User", back_populates="balances", passive_deletes=True)
+    user = relationship("User", back_populates="balances")
 
 
 class Deposit(Base):

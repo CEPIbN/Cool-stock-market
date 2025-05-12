@@ -8,5 +8,5 @@ class ResponseUser(BaseModel):
     role : str
     api_key : str
 
-    # class Config:
-    #     orm_mode = True
+    class Config:
+        from_attributes = True

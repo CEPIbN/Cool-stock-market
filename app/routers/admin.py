@@ -1,20 +1,22 @@
-import uuid
+from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from fastapi import Depends
-from fastapi.openapi.models import Response
-from fastapi.openapi.utils import status_code_ranges
-from fastapi.params import Header
-from sqlalchemy import UUID
-from sqlalchemy.orm import Session
-from starlette.responses import JSONResponse
+from fastapi.params import Path
 
+from sqlalchemy.orm import Session
+
+from app.DTO.Request.DepositRequest import DepositRequest
 from app.DTO.Request.InstrumentSchema import InstrumentSchema
+from app.DTO.Request.WithdrawRequest import WithdrawRequest
 from app.DTO.Response.Ok import Ok
 from app.DTO.Response.ResponseUser import ResponseUser
 from app.db import get_db
+from app.exceptions import CustomAPIException
+from app.middlewares import get_current_user_from_token
+from app.models.enums.ErrorType import ErrorType
 from app.models.enums.UserRole import UserRole
-from app.models.models import User, Instrument
+from app.models.models import User, Instrument, Balance
 
 router = APIRouter(
     prefix="/api/v1/admin",
@@ -22,53 +24,110 @@ router = APIRouter(
 )
 
 @router.delete("/user/{user_id}", response_model=ResponseUser)
-def delete_user(user_id: str,
-                authorization: str | None = Header(default=None),
+def delete_user(user_id: UUID = Path(title="User Id"),
+                current_user: User = Depends(get_current_user_from_token),
                 db: Session = Depends(get_db)):
-    if is_admin(authorization, db):
-        user = db.query(User).filter(uuid.UUID(user_id) == User.id).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        db.delete(user)
-        db.commit()
-        return ResponseUser(id=uuid.UUID(user_id),
-                            name=user.name,
-                            role=user.role,
-                            api_key=user.api_key)
+    is_admin(current_user)
 
-    return JSONResponse(content={"message": "HTTPValidationError"}, status_code=422)
+    user = validate_user(db, user_id)
+
+    db.delete(user)
+    db.commit()
+    return ResponseUser(id=user_id,
+                        name=user.name,
+                        role=user.role,
+                        api_key=user.api_key)
 
 
 @router.post("/instrument", response_model=Ok)
 def add_instrument(instrument: InstrumentSchema,
-                    authorization: str | None = Header(default=None),
-                   db: Session = Depends(get_db)):
-    if is_admin(authorization, db):
-        existing = db.query(Instrument).filter(instrument.ticker == Instrument.ticker).first()
-        if existing:
-            raise HTTPException(status_code=400, detail="Instrument already exists")
-        db.add(Instrument(ticker=instrument.ticker, name=instrument.name))
-        db.commit()
-        return Ok
+                    current_user: User = Depends(get_current_user_from_token),
+                    db: Session = Depends(get_db)):
+    is_admin(current_user)
 
-    return JSONResponse(content={"message": "HTTPValidationError"}, status_code=422)
+    existing = db.query(Instrument).filter(instrument.ticker == Instrument.ticker).first()
+    if existing:
+        raise CustomAPIException(loc=["body", "ticker"],
+                                 msg=f"Ticker {existing.ticker} already exists",
+                                 type_error=ErrorType.EXISTING_TICKER)
 
-@router.delete("/instrument/{ticker}")
-def delete_instrument():
-    return
+    db.add(Instrument(ticker=instrument.ticker, name=instrument.name))
+    db.commit()
+    return Ok
+
+@router.delete("/instrument/{ticker}", response_model=Ok)
+def delete_instrument(ticker: str = Path(),
+                      current_user: User = Depends(get_current_user_from_token),
+                      db: Session = Depends(get_db)):
+    is_admin(current_user)
+
+    instrument = validate_ticker(db, ticker)
+
+    db.delete(instrument)
+    db.commit()
+    return Ok
 
 @router.post("/balance/deposit")
-def deposit():
-    #Метод для пополнения баланса пользователя
-    return
+def deposit_balance(deposit_data: DepositRequest,
+                    current_user: User = Depends(get_current_user_from_token),
+                    db: Session = Depends(get_db)):
+    is_admin(current_user)
 
-@router.get("/balance/withdraw")
-def withdraw():
-    return
+    user = validate_user(db, deposit_data.user_id)
+    instrument = validate_ticker(db, deposit_data.ticker)
 
-def is_admin(authorization_token: str,
-             db: Session):
-    if authorization_token is None: return False
-    admin_id = authorization_token.split('-', 1)
-    admin = db.query(User).get(uuid.UUID(admin_id[1]))
-    return admin.role == UserRole.ADMIN
+    balance = db.query(Balance).filter_by(user_id=user.id, ticker=instrument.ticker).first()
+    if not balance:
+        balance = Balance(user_id=user.id, ticker=instrument.ticker, amount=0)
+        db.add(balance)
+
+    balance.amount += deposit_data.amount
+    db.commit()
+    return Ok()
+
+@router.post("/balance/withdraw")
+def withdraw(withdraw_data: WithdrawRequest,
+             current_user: User = Depends(get_current_user_from_token),
+             db: Session = Depends(get_db)):
+    is_admin(current_user)
+
+    user = validate_user(db, withdraw_data.user_id)
+    instrument = validate_ticker(db, withdraw_data.ticker)
+
+    balance = db.query(Balance).filter_by(user_id=user.id, ticker=instrument.ticker).first()
+    if not balance or balance.amount < withdraw_data.amount:
+        raise CustomAPIException(loc=["body", "amount"],
+                                 msg=f"Not enough tickers {instrument.ticker}",
+                                 type_error=ErrorType.NOT_ENOUGH_FOR_WITHDRAW)
+
+    balance.amount -= withdraw_data.amount
+    db.commit()
+    return Ok()
+
+
+
+
+def is_admin(current_user: User):
+    if current_user.role != UserRole.ADMIN:
+        raise CustomAPIException(loc=["header", "authorization"],
+                                 msg="You aren't an admin!",
+                                 type_error=ErrorType.AUTHORIZATION)
+
+def validate_user(db: Session, user_id: UUID):
+    user = db.query(User).filter(user_id == User.id).first()
+    if not user:
+        raise CustomAPIException(loc=["body", "user_id"],
+                                 msg=f"User {user_id} not found",
+                                 type_error=ErrorType.USER_ID)
+
+    return user
+
+def validate_ticker(db: Session, ticker: str):
+    instrument = db.query(Instrument).filter(ticker == Instrument.ticker).first()
+    if not instrument:
+        raise CustomAPIException(loc=["body", "ticker"],
+                                 msg=f"Ticker {ticker} not found",
+                                 type_error=ErrorType.TICKER)
+
+    return instrument
+

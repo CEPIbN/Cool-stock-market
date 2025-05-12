@@ -1,12 +1,13 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
+from starlette.responses import JSONResponse
 
-from app.exceptions import custom_http_validation_exception_handler
+from app.DTO.Response.HTTPValidationError import HTTPValidationError, ValidationErrorDetail
+from app.exceptions import custom_http_validation_exception_handler, CustomAPIException
 from app.routers import public, admin, balance, order, user
 from app.db import get_db
-from app.seed import seed
 
 app = FastAPI()
 
@@ -18,6 +19,17 @@ app.include_router(balance.router_balance)
 app.include_router(balance.router_admin_balance)
 
 app.add_exception_handler(RequestValidationError, custom_http_validation_exception_handler)
+
+@app.exception_handler(CustomAPIException)
+async def unhandled_exception_handler(request: Request, exc: CustomAPIException):
+    return JSONResponse(
+        status_code=422,
+        content=HTTPValidationError(
+            detail=[ValidationErrorDetail(loc=exc.loc,
+                                          msg=exc.msg,
+                                          type=exc.type)]
+        ).model_dump()
+    )
 
 @app.get("/")
 def read_root(db: Session = Depends(get_db)):
