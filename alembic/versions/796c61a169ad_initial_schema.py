@@ -24,25 +24,33 @@ def upgrade() -> None:
     op.create_table('instruments',
                     sa.Column('ticker', sa.String(), nullable=False),
                     sa.Column('name', sa.String(), nullable=False),
+
                     sa.CheckConstraint("ticker ~ '^[A-Z]{2,10}$'", name='check_ticker_format'),
                     sa.PrimaryKeyConstraint('ticker')
                     )
+
     op.create_table('users',
                     sa.Column('id', sa.UUID(), nullable=False),
+
                     sa.Column('name', sa.String(), nullable=False),
                     sa.Column('role', sa.Enum('ADMIN', 'USER', name='user_role'), nullable=False),
                     sa.Column('api_key', sa.String(), nullable=False),
+
                     sa.PrimaryKeyConstraint('id')
                     )
+
     op.create_table('balances',
                     sa.Column('user_id', sa.UUID(), nullable=False),
                     sa.Column('ticker', sa.String(), nullable=False),
                     sa.Column('amount', sa.Integer(), nullable=False),
+
                     sa.ForeignKeyConstraint(['ticker'], ['instruments.ticker'], ondelete='CASCADE'),
                     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+
                     sa.PrimaryKeyConstraint('user_id', 'ticker'),
                     sa.UniqueConstraint('user_id', 'ticker', name='uq_user_ticker')
                     )
+
     op.create_table('deposits',
                     sa.Column('id', sa.UUID(), nullable=False),
                     sa.Column('user_id', sa.UUID(), nullable=False),
@@ -58,32 +66,38 @@ def upgrade() -> None:
                     sa.Column('id', sa.UUID(), nullable=False),
                     sa.Column('user_id', sa.UUID(), nullable=False),
                     sa.Column('ticker', sa.String(), nullable=False),
+
                     sa.Column('direction', sa.Enum('BUY', 'SELL', name='direction'), nullable=False),
                     sa.Column('qty', sa.Integer(), nullable=False),
                     sa.Column('price', sa.Integer(), nullable=False),
                     sa.Column('status',
-                              sa.Enum('NEW', 'EXECUTED', 'PARTIALLY_EXECUTED', 'CANCELLED', name='orderstatus'),
+                              sa.Enum('NEW', 'EXECUTED', 'PARTIALLY_EXECUTED', 'CANCELLED', name='order_status'),
                               nullable=False),
                     sa.Column('filled', sa.Integer(), nullable=False),
                     sa.Column('timestamp', sa.DateTime(timezone=True), nullable=False),
+
                     sa.ForeignKeyConstraint(['ticker'], ['instruments.ticker'], ),
                     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
                     sa.PrimaryKeyConstraint('id')
                     )
+
     op.create_table('market_orders',
                     sa.Column('id', sa.UUID(), nullable=False),
                     sa.Column('user_id', sa.UUID(), nullable=False),
                     sa.Column('ticker', sa.String(), nullable=False),
+
                     sa.Column('direction', sa.Enum('BUY', 'SELL', name='direction'), nullable=False),
                     sa.Column('qty', sa.Integer(), nullable=False),
                     sa.Column('status',
-                              sa.Enum('NEW', 'EXECUTED', 'PARTIALLY_EXECUTED', 'CANCELLED', name='orderstatus'),
+                              sa.Enum('NEW', 'EXECUTED', 'PARTIALLY_EXECUTED', 'CANCELLED', name='order_status'),
                               nullable=False),
                     sa.Column('timestamp', sa.DateTime(timezone=True), nullable=False),
+
                     sa.ForeignKeyConstraint(['ticker'], ['instruments.ticker'], ),
                     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
                     sa.PrimaryKeyConstraint('id')
                     )
+
     op.create_table('transactions',
                     sa.Column('id', sa.Integer(), nullable=False),
                     sa.Column('ticker', sa.String(), nullable=False),
@@ -93,7 +107,9 @@ def upgrade() -> None:
                     sa.ForeignKeyConstraint(['ticker'], ['instruments.ticker'], ),
                     sa.PrimaryKeyConstraint('id')
                     )
+
     op.create_index(op.f('ix_transactions_id'), 'transactions', ['id'], unique=False)
+
     op.create_table('withdrawals',
                     sa.Column('id', sa.UUID(), nullable=False),
                     sa.Column('user_id', sa.UUID(), nullable=False),
