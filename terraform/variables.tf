@@ -1,14 +1,21 @@
-
 variable "yc_token" {}
 variable "cloud_id" {}
 variable "folder_id" {}
 variable "sa_id" {}
 variable "ycr_image_path" {}
+variable "domain_name" {}
+
 variable "db_password" {
   sensitive = true
 }
+
 variable "ycr_token" {
   sensitive = true
+}
+
+variable "certificate_id" {
+  description = "ID сертификата в Yandex Certificate Manager"
+  type        = string
 }
 
 variable "use_existing_vpc" {
@@ -23,14 +30,3 @@ variable "existing_vpc_id" {
   description = "ID существующей VPC-сети (если используется)"
 }
 
-# variable "use_existing_vpc_address" {
-#   type        = bool
-#   default     = true
-#   description = "Использовать ли существующий статичный адрес"
-# }
-#
-# variable "existing_vpc_address_id" {
-#   type        = string
-#   default     = "fl8bpt2t6ri8l9f8jt5r"
-#   description = "ID существующего VPC-адреса (если используется)"
-# }

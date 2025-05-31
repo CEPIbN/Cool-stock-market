@@ -13,8 +13,9 @@ provider "yandex" {
   folder_id = var.folder_id
 }
 
+# VPC & Subnets
 resource "yandex_vpc_network" "main" {
-  name = "main-network"
+  name  = "main-network"
   count = var.use_existing_vpc ? 0 : 1
 }
 
@@ -41,12 +42,12 @@ resource "yandex_vpc_subnet" "subnet-d" {
 
 resource "yandex_vpc_address" "addr" {
   name = "project-ip"
-  #count = var.use_existing_vpc_address ? 0 : 1
   external_ipv4_address {
     zone_id = "ru-central1-d"
   }
 }
 
+# PostgreSQL cluster
 resource "yandex_mdb_postgresql_cluster" "pg_cluster" {
   name        = "my-pg-cluster"
   environment = "PRODUCTION"
@@ -57,20 +58,10 @@ resource "yandex_mdb_postgresql_cluster" "pg_cluster" {
     resources {
       resource_preset_id = "s2.micro"
       disk_size          = 30
-      disk_type_id       = "network-ssd"
+      disk_type_id       = "network-hdd"
     }
   }
-
-  host {
-    zone      = "ru-central1-a"
-    subnet_id = yandex_vpc_subnet.subnet-a.id
-  }
-
-  host {
-    zone      = "ru-central1-b"
-    subnet_id = yandex_vpc_subnet.subnet-b.id
-  }
-
+  
   host {
     zone      = "ru-central1-d"
     subnet_id = yandex_vpc_subnet.subnet-d.id
@@ -91,6 +82,7 @@ resource "yandex_mdb_postgresql_database" "market-db" {
   depends_on = [yandex_mdb_postgresql_user.admin]
 }
 
+# Compute instance group
 data "yandex_compute_image" "ubuntu" {
   family = "ubuntu-2204-lts"
 }
@@ -100,8 +92,10 @@ resource "yandex_compute_instance_group" "web_group" {
   service_account_id = var.sa_id
   folder_id          = var.folder_id
 
-  depends_on = [yandex_mdb_postgresql_user.admin,
-  yandex_mdb_postgresql_database.market-db]
+  depends_on = [
+    yandex_mdb_postgresql_user.admin,
+    yandex_mdb_postgresql_database.market-db
+  ]
 
   instance_template {
     platform_id = "standard-v2"
@@ -152,39 +146,122 @@ resource "yandex_compute_instance_group" "web_group" {
   }
 }
 
-# load balancer
-resource "yandex_lb_network_load_balancer" "lb-1" {
-  name = "market-network-lb"
+# ALB target and backend group
+resource "yandex_alb_target_group" "alb_target_group" {
+  name = "alb-target-group"
 
-  listener {
-    name = "http-listener"
-    port = 80
-    external_address_spec {
-      address    = yandex_vpc_address.addr.external_ipv4_address[0].address
-      ip_version = "ipv4"
-    }
+  target {
+    subnet_id  = yandex_vpc_subnet.subnet-a.id
+    ip_address = yandex_compute_instance_group.web_group.instances[0].network_interface[0].ip_address
   }
 
-  attached_target_group {
-    target_group_id = yandex_compute_instance_group.web_group.load_balancer[0].target_group_id
-
-    healthcheck {
-      name = "tcp-healthcheck"
-      tcp_options {
-        port = 80
-      }
-      interval = 2
-      timeout  = 1
-    }
+  target {
+    subnet_id  = yandex_vpc_subnet.subnet-b.id
+    ip_address = yandex_compute_instance_group.web_group.instances[1].network_interface[0].ip_address
   }
 
-  depends_on = [yandex_vpc_address.addr]
+  target {
+    subnet_id  = yandex_vpc_subnet.subnet-d.id
+    ip_address = yandex_compute_instance_group.web_group.instances[2].network_interface[0].ip_address
+  }
 }
 
-output "lb_external_ip" {
+resource "yandex_alb_backend_group" "bg" {
+  name = "market-backend-group"
+
+  http_backend {
+    name             = "http-backend"
+    target_group_ids = [yandex_alb_target_group.alb_target_group.id]
+    port             = 80
+
+    load_balancing_config {
+      panic_threshold = 50
+    }
+
+    healthcheck {
+      timeout  = "1s"
+      interval = "2s"
+
+      http_healthcheck {
+        path = "/"
+      }
+    }
+  }
+}
+
+resource "yandex_alb_http_router" "router" {
+  name = "market-router"
+}
+
+resource "yandex_alb_virtual_host" "vhost" {
+  name           = "market-vhost"
+  http_router_id = yandex_alb_http_router.router.id
+
+  route {
+    name = "default-route"
+
+    http_route {
+      http_route_action {
+        backend_group_id = yandex_alb_backend_group.bg.id
+      }
+    }
+  }
+}
+
+resource "yandex_alb_load_balancer" "alb" {
+  name       = "market-alb"
+  network_id = local.vpc_id
+
+  allocation_policy {
+    location {
+      zone_id   = "ru-central1-a"
+      subnet_id = yandex_vpc_subnet.subnet-a.id
+    }
+    location {
+      zone_id   = "ru-central1-b"
+      subnet_id = yandex_vpc_subnet.subnet-b.id
+    }
+    location {
+      zone_id   = "ru-central1-d"
+      subnet_id = yandex_vpc_subnet.subnet-d.id
+    }
+  }
+
+  listener {
+    name = "https-listener"
+
+    endpoint {
+      address {
+        external_ipv4_address {
+          address = yandex_vpc_address.addr.external_ipv4_address[0].address
+        }
+      }
+      ports = [443]
+    }
+
+    tls {
+      default_handler {
+        certificate_ids = [var.certificate_id]
+
+        http_handler {
+          http_router_id = yandex_alb_http_router.router.id
+        }
+      }
+    }
+  }
+
+  depends_on = [
+    yandex_alb_backend_group.bg,
+    yandex_alb_virtual_host.vhost
+  ]
+}
+
+# Output
+output "alb_external_ip" {
   value = yandex_vpc_address.addr.external_ipv4_address[0].address
 }
 
+# Locals
 locals {
   raw_docker_compose = templatefile("${path.module}/docker-compose.tftpl", {
     db_user     = yandex_mdb_postgresql_user.admin.name,
@@ -194,18 +271,13 @@ locals {
     image_path  = var.ycr_image_path
   })
 
-  # Add tab to each line
   docker_compose = join("\n", [for line in split("\n", local.raw_docker_compose) : "      ${line}"])
 
   cloud_init = templatefile("${path.module}/cloud-init.tftpl", {
-    ycr_token = var.ycr_token
+    ycr_token      = var.ycr_token,
     docker_compose = local.docker_compose
   })
 
   vpc_id = var.use_existing_vpc ? var.existing_vpc_id : yandex_vpc_network.main[0].id
-  #vpc_address = var.use_existing_vpc_address ? var.existing_vpc_address_id : yandex_vpc_address.addr[0].external_ipv4_address[0].address
 }
-
-
-
 
