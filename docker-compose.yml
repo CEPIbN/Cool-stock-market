@@ -23,6 +23,8 @@ services:
       - db
     volumes:
       - ./app:/app/app
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql://admin:The_ManWhoS0ldTheWor1d@db:5432/market_db
     restart: always

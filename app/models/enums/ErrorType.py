@@ -2,6 +2,7 @@ from enum import Enum
 
 class ErrorType(str, Enum):
     USER_ID = "Wrong user_id"
+    ORDER_ID = "Wrong order_id"
     TICKER = "Wrong ticker"
     AUTHORIZATION = "Permission denied"
     EXISTING_TICKER = "Existing ticker"

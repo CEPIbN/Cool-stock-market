@@ -5,7 +5,7 @@ Revises: 796c61a169ad
 Create Date: 2025-05-04 15:55:48.730014
 
 """
-import uuid
+from app.config import settings
 from typing import Sequence, Union
 
 from alembic import op
@@ -36,17 +36,15 @@ def upgrade() -> None:
                         column('name', String)
     )
 
-    uuid_str = "56856e6b-dcfe-48ba-a9b2-fc300fc0028f"
-    uuid_obj = uuid.UUID(uuid_str)
-
-    op.bulk_insert(users, [
-        {
-            'id': uuid_obj,
-            'name': "Admin",
-            'role': UserRole.ADMIN,
-            'api_key': f"key-{uuid_obj}"
-        }
-    ])
+    for i, uuid in enumerate(settings.admins_id):
+        op.bulk_insert(users, [
+            {
+                'id': uuid,
+                'name': f"Admin{i}",
+                'role': UserRole.ADMIN,
+                'api_key': f"key-{uuid}"
+            }
+        ])
 
     op.bulk_insert(instruments, [
         {

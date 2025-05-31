@@ -6,9 +6,7 @@ from fastapi.params import Path
 
 from sqlalchemy.orm import Session
 
-from app.DTO.Request.DepositRequest import DepositRequest
 from app.DTO.Request.InstrumentSchema import InstrumentSchema
-from app.DTO.Request.WithdrawRequest import WithdrawRequest
 from app.DTO.Response.Ok import Ok
 from app.DTO.Response.ResponseUser import ResponseUser
 from app.db import get_db
@@ -16,7 +14,7 @@ from app.exceptions import CustomAPIException
 from app.middlewares import get_current_user_from_token
 from app.models.enums.ErrorType import ErrorType
 from app.models.enums.UserRole import UserRole
-from app.models.models import User, Instrument, Balance
+from app.models.models import User, Instrument
 
 router = APIRouter(
     prefix="/api/v1/admin",
@@ -28,7 +26,6 @@ def delete_user(user_id: UUID = Path(title="User Id"),
                 current_user: User = Depends(get_current_user_from_token),
                 db: Session = Depends(get_db)):
     is_admin(current_user)
-
     user = validate_user(db, user_id)
 
     db.delete(user)
@@ -60,52 +57,11 @@ def delete_instrument(ticker: str = Path(),
                       current_user: User = Depends(get_current_user_from_token),
                       db: Session = Depends(get_db)):
     is_admin(current_user)
-
     instrument = validate_ticker(db, ticker)
 
     db.delete(instrument)
     db.commit()
     return Ok
-
-@router.post("/balance/deposit")
-def deposit_balance(deposit_data: DepositRequest,
-                    current_user: User = Depends(get_current_user_from_token),
-                    db: Session = Depends(get_db)):
-    is_admin(current_user)
-
-    user = validate_user(db, deposit_data.user_id)
-    instrument = validate_ticker(db, deposit_data.ticker)
-
-    balance = db.query(Balance).filter_by(user_id=user.id, ticker=instrument.ticker).first()
-    if not balance:
-        balance = Balance(user_id=user.id, ticker=instrument.ticker, amount=0)
-        db.add(balance)
-
-    balance.amount += deposit_data.amount
-    db.commit()
-    return Ok()
-
-@router.post("/balance/withdraw")
-def withdraw(withdraw_data: WithdrawRequest,
-             current_user: User = Depends(get_current_user_from_token),
-             db: Session = Depends(get_db)):
-    is_admin(current_user)
-
-    user = validate_user(db, withdraw_data.user_id)
-    instrument = validate_ticker(db, withdraw_data.ticker)
-
-    balance = db.query(Balance).filter_by(user_id=user.id, ticker=instrument.ticker).first()
-    if not balance or balance.amount < withdraw_data.amount:
-        raise CustomAPIException(loc=["body", "amount"],
-                                 msg=f"Not enough tickers {instrument.ticker}",
-                                 type_error=ErrorType.NOT_ENOUGH_FOR_WITHDRAW)
-
-    balance.amount -= withdraw_data.amount
-    db.commit()
-    return Ok()
-
-
-
 
 def is_admin(current_user: User):
     if current_user.role != UserRole.ADMIN:
