@@ -137,13 +137,12 @@ resource "yandex_compute_instance_group" "web_group" {
   }
 
   deploy_policy {
-    max_unavailable = 1
-    max_expansion   = 1
+    max_unavailable = 2
+    max_expansion   = 3
+    max_creating    = 3
+    max_deleting    = 1
   }
 
-  load_balancer {
-    target_group_name = "market-balancer-target-group"
-  }
 }
 
 # ALB target and backend group
