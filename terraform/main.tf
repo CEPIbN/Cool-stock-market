@@ -268,6 +268,7 @@ locals {
     db_name     = yandex_mdb_postgresql_database.market-db.name,
     db_host     = yandex_mdb_postgresql_cluster.pg_cluster.host[0].fqdn,
     image_path  = var.ycr_image_path
+    admins_id   = var.admins_id
   })
 
   docker_compose = join("\n", [for line in split("\n", local.raw_docker_compose) : "      ${line}"])
