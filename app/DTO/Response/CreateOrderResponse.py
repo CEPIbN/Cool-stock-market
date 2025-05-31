@@ -1,0 +1,6 @@
+from pydantic import BaseModel, Field
+from uuid import UUID
+
+class CreateOrderResponse(BaseModel):
+    success: bool = Field(default=True)
+    order_id: UUID = Field(examples=["35b0884d-9a1d-47b0-91c7-eecf0ca56bc8"])

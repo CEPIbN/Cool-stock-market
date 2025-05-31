@@ -1,0 +1,52 @@
+from datetime import datetime
+from typing import Union, Literal, Annotated
+
+from pydantic import BaseModel, Field, conint
+from uuid import UUID
+
+from app.models.enums.Direction import Direction
+from app.models.enums.OrderStatus import OrderStatus
+
+class BaseOrderResponse(BaseModel):
+    id: UUID = Field(examples=["35b0884d-9a1d-47b0-91c7-eecf0ca56bc8"])
+    status: OrderStatus
+    user_id: UUID = Field(examples=["35b0884d-9a1d-47b0-91c7-eecf0ca56bc8"])
+    timestamp: datetime
+    type: str  # discriminator
+
+class LimitOrderBody(BaseModel):
+    direction: Direction
+    ticker: str = Field(pattern=r"^[A-Z]{2,10}$", examples=["RUB"])
+    qty: conint(gt=0) = Field(examples=[100])
+    price: conint(gt=0) = Field(examples=[100])
+
+    class Config:
+        from_attributes = True
+
+class MarketOrderBody(BaseModel):
+    direction: Direction
+    ticker: str = Field(pattern=r"^[A-Z]{2,10}$", examples=["RUB"])
+    qty: conint(gt=0) = Field(examples=[100])
+
+    class Config:
+        from_attributes = True
+
+class LimitOrderResponse(BaseOrderResponse):
+    type: Literal["limit"] = Field(exclude=True, default="limit")
+    body: LimitOrderBody
+    filled: int = Field(default=0)
+    class Config:
+        from_attributes = True
+
+class MarketOrderResponse(BaseOrderResponse):
+    type: Literal["market"] = Field(exclude=True, default="market")
+    body: MarketOrderBody
+
+    class Config:
+        from_attributes = True
+
+
+OrderResponse = Annotated[
+    Union[LimitOrderResponse, MarketOrderResponse],
+    Field(discriminator="type")
+]

@@ -1,12 +1,14 @@
 from logging.config import fileConfig
+from os import getenv
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
-from alembic import context
+from app.db import Base
+from app.models import models
 
-from app.db import Base  # или где у тебя определён Base
-from app.models.models import *  # Подключи все модели, чтобы Alembic увидел их
+
+from alembic import context
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -20,15 +22,20 @@ if config.config_file_name is not None:
 # add your model's MetaData object here
 # for 'autogenerate' support
 # from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
 
+DATABASE_URL = getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    raise Exception("DATABASE_URL environment variable is not set")
+
+config.set_main_option("sqlalchemy.url", DATABASE_URL)
 target_metadata = Base.metadata
+#target_metadata = None
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
-
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
@@ -42,9 +49,8 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
     context.configure(
-        url=url,
+        url=DATABASE_URL,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -61,6 +67,11 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+
+    # config.set_main_option(
+    #     "sqlalchemy.url", "postgresql://admin:The_ManWhoS0ldTheWor1d@localhost:5432/market_db"
+    # )
+
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",

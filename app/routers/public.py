@@ -1,10 +1,10 @@
-from fastapi import APIRouter, HTTPException
+from uuid import uuid4
+
+from fastapi import APIRouter
 from fastapi.params import Query
 from fastapi import Depends
-import uuid
 
-
-from app.DTO.Response.ResponseInstrument import InstrumentResponse
+from app.DTO.Request.InstrumentSchema import InstrumentSchema
 from app.models.models import User, Instrument
 from app.DTO.Request.NewUser import NewUser
 from app.DTO.Response.ResponseUser import ResponseUser
@@ -20,26 +20,22 @@ router = APIRouter(
     tags=["public"]
 )
 
-@router.post("/register",  response_model=ResponseUser)
+@router.post("/register",
+             response_model=ResponseUser)
 def register_user(data: NewUser,
                   db: Session = Depends(get_db)
 ):
-    print(data)
-    user = User()
-    user.name = data.name
-    user.role = UserRole.USER
-    new_uuid = uuid.uuid4()
-    user.id = new_uuid
-    user.api_key = f"key-{new_uuid}"
+    new_uuid = uuid4()
+    user = User(id=new_uuid,
+                name=data.name,
+                role=UserRole.USER,
+                api_key=f"key-{new_uuid}")
     db.add(user)
     db.commit()
-    return ResponseUser(id=f"{new_uuid}",
-                        name=user.name,
-                        role=user.role,
-                        api_key=user.api_key)
+    return user
 
 
-@router.get("/instrument",  response_model=list[InstrumentResponse])
+@router.get("/instrument",  response_model=list[InstrumentSchema])
 def get_instruments(db: Session = Depends(get_db)):
     return db.query(Instrument).all()
 

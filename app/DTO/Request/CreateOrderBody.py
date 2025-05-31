@@ -1,0 +1,10 @@
+from pydantic import BaseModel, Field, conint
+from typing_extensions import Optional
+
+from app.models.enums.Direction import Direction
+
+class OrderBody(BaseModel):
+    direction: Direction = Field()
+    ticker: str = Field(pattern=r"^[A-Z]{2,10}$", examples=["RUB"])
+    qty: conint(gt=0) = Field()
+    price: Optional[conint(gt=0)] = Field(examples=[100], default=None)
