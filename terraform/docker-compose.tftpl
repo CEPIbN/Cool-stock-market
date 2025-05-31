@@ -6,4 +6,5 @@ services:
       - "80:8000"
     environment:
       - DATABASE_URL=postgresql://${db_user}:${db_password}@${db_host}:6432/${db_name}
+      - ADMINS_ID={admins_id}
     restart: always
