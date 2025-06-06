@@ -7,7 +7,7 @@ from app.DTO.Request.WithdrawRequest import WithdrawRequest
 from app.DTO.Response.Ok import Ok
 from app.db import get_db
 from app.exceptions import CustomAPIException
-from app.middlewares import get_current_user_from_token
+from app.middlewares import get_current_user
 from app.models.enums.ErrorType import ErrorType
 from app.models.models import User, Balance
 from app.routers.admin import is_admin, validate_user, validate_ticker
@@ -23,7 +23,7 @@ router_admin_balance = APIRouter(
 )
 
 @router_balance.get("/")
-def get_balance(current_user: User = Depends(get_current_user_from_token),
+def get_balance(current_user: User = Depends(get_current_user),
                 db: Session = Depends(get_db)):
     balances = db.query(Balance).filter(current_user.id == Balance.user_id)
     balances_dict = {i.ticker: i.amount for i in balances}
@@ -31,7 +31,7 @@ def get_balance(current_user: User = Depends(get_current_user_from_token),
 
 @router_admin_balance.post("/deposit", response_model=Ok)
 def deposit_balance(deposit_data: DepositRequest,
-                    current_user: User = Depends(get_current_user_from_token),
+                    current_user: User = Depends(get_current_user),
                     db: Session = Depends(get_db)):
     is_admin(current_user)
 
@@ -49,7 +49,7 @@ def deposit_balance(deposit_data: DepositRequest,
 
 @router_admin_balance.post("/withdraw", response_model=Ok)
 def withdraw(withdraw_data: WithdrawRequest,
-             current_user: User = Depends(get_current_user_from_token),
+             current_user: User = Depends(get_current_user),
              db: Session = Depends(get_db)):
     is_admin(current_user)
 

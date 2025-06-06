@@ -40,6 +40,21 @@ class Instrument(Base):
         CheckConstraint("ticker ~ '^[A-Z]{2,10}$'", name='check_ticker_format'),
     )
 
+class AssetEquivalent(Base):
+    __tablename__ = "asset_equivalents"
+
+    base_ticker = Column(String, ForeignKey("instruments.ticker"), primary_key=True)
+    equivalent_ticker = Column(String, ForeignKey("instruments.ticker"), primary_key=True)
+
+    rate = Column(Integer, nullable=False, default=1)
+
+    base = relationship("Instrument", foreign_keys=[base_ticker], backref="equivalent_mapping")
+    equivalent = relationship("Instrument", foreign_keys=[equivalent_ticker])
+
+    __table_args__ = (
+        UniqueConstraint('base_ticker', 'equivalent_ticker', name="uq_base_ticker"),
+    )
+
 
 class Transaction(Base):
     __tablename__ = "transactions"
@@ -48,7 +63,7 @@ class Transaction(Base):
     ticker = Column(String, ForeignKey("instruments.ticker"), nullable=False)
     amount = Column(Integer, nullable=False)
     price = Column(Integer, nullable=False)
-    timestamp = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    timestamp = Column(DateTime(timezone=True), nullable=False, default=datetime.now())
 
 
 class Balance(Base):

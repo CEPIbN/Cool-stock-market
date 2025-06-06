@@ -48,32 +48,8 @@ def upgrade() -> None:
 
     op.bulk_insert(instruments, [
         {
-            'ticker': "BTC",
-            'name': "Bitcoin"
-        },
-        {
-            'ticker': "EUR",
-            'name': "Euro"
-        },
-        {
-            'ticker': "USD",
-            'name': "Dollar"
-        },
-        {
-            'ticker': "SBER",
-            'name': "Sberbank"
-        },
-        {
-            'ticker': "GAZP",
-            'name': "Gazprom"
-        },
-        {
-            'ticker': "ETH",
-            'name': "Ethereum"
-        },
-        {
-            'ticker': "NVDA",
-            'name': "NVIDIA Corporation"
+            'ticker': "RUB",
+            'name': "Ruble"
         }
     ])
 
