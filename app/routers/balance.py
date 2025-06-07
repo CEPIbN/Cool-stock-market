@@ -52,12 +52,11 @@ def withdraw(withdraw_data: WithdrawRequest,
              current_user: User = Depends(get_current_user),
              db: Session = Depends(get_db)):
     is_admin(current_user)
-
     user = validate_user(db, withdraw_data.user_id)
     instrument = validate_ticker(db, withdraw_data.ticker)
 
     balance = db.query(Balance).filter_by(user_id=user.id, ticker=instrument.ticker).first()
-    if not balance or balance.amount < withdraw_data.amount:
+    if not balance or (balance.amount-balance.frozen_amount) < withdraw_data.amount:
         raise CustomAPIException(loc=["body", "amount"],
                                  msg=f"Not enough tickers {instrument.ticker}",
                                  type_error=ErrorType.NOT_ENOUGH_FOR_WITHDRAW)
