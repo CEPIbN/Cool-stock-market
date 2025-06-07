@@ -43,10 +43,12 @@ def upgrade() -> None:
                     sa.Column('user_id', sa.UUID(), nullable=False),
                     sa.Column('ticker', sa.String(), nullable=False),
                     sa.Column('amount', sa.Integer(), nullable=False),
+                    sa.Column('frozen_amount', sa.Integer(), nullable=False),
 
                     sa.ForeignKeyConstraint(['ticker'], ['instruments.ticker'], ondelete='CASCADE'),
                     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
 
+                    sa.CheckConstraint("frozen_amount <= amount", name='check_frozen_le_amount'),
                     sa.PrimaryKeyConstraint('user_id', 'ticker'),
                     sa.UniqueConstraint('user_id', 'ticker', name='uq_user_ticker')
                     )
@@ -88,6 +90,7 @@ def upgrade() -> None:
 
                     sa.Column('direction', sa.Enum('BUY', 'SELL', name='direction'), nullable=False),
                     sa.Column('qty', sa.Integer(), nullable=False),
+                    sa.Column('rate', sa.Integer(), nullable=False),
                     sa.Column('status',
                               sa.Enum('NEW', 'EXECUTED', 'PARTIALLY_EXECUTED', 'CANCELLED', name='order_status'),
                               nullable=False),
