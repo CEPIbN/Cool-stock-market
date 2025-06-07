@@ -68,11 +68,13 @@ class Transaction(Base):
 
 class Balance(Base):
     __tablename__ = "balances"
-    __table_args__ = (UniqueConstraint('user_id', 'ticker', name='uq_user_ticker'),)
+    __table_args__ = (UniqueConstraint('user_id', 'ticker', name='uq_user_ticker'),
+                      CheckConstraint('frozen_amount <= amount', name='check_frozen_le_amount'),)
 
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     ticker = Column(String, ForeignKey("instruments.ticker", ondelete="CASCADE"), primary_key=True)
     amount = Column(Integer, nullable=False, default=0)
+    frozen_amount = Column(Integer, nullable=False, default=0)
 
     user = relationship("User", back_populates="balances")
     instrument = relationship("Instrument", back_populates="balances")
@@ -127,6 +129,8 @@ class LimitOrder(BaseOrder):
 
 class MarketOrder(BaseOrder):
     __tablename__ = "market_orders"
+
+    rate = Column(Integer, nullable=False)
 
     user = relationship("User", back_populates="market_orders")
     instrument = relationship("Instrument", back_populates="market_orders")

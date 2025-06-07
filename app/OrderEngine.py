@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 from app.models.enums.Direction import Direction
 from app.models.enums.OrderStatus import OrderStatus
 from app.models.models import BaseOrder, MarketOrder, LimitOrder, Transaction, Balance
+from app.utils.balance import spend_frozen_balance
+
 
 class OrderMatcher:
     def __init__(self, db: Session):
@@ -96,7 +98,8 @@ class OrderMatcher:
             order.status = OrderStatus.PARTIALLY_EXECUTED
 
     def _record_transaction(self, order : BaseOrder, matched : LimitOrder, matched_qty : int):
-        trade_price = matched.price if hasattr(matched, 'price') else order.price
+        trade_price = matched.price  # matched всегда лимитный ордер
+        #trade_price = matched.price if hasattr(matched, 'price') else order.price
         transaction = Transaction(
             ticker=order.ticker,
             amount=matched_qty,
@@ -121,6 +124,7 @@ class OrderMatcher:
         to_balance = self.db.get(Balance, (to_user, asset))
 
         if from_balance:
-            from_balance.amount -= amount
+            spend_frozen_balance(from_balance, amount)
+            #from_balance.amount -= amount
         if to_balance:
             to_balance.amount += amount
