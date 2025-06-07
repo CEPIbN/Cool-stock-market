@@ -74,9 +74,7 @@ def cancel_order(order_id : UUID = Path(),
             .first()
         )
         if isinstance(order, BaseOrder):
-            order.status = OrderStatus.CANCELLED
-            unfreeze_balance_after_cancel(order, db)
-            db.commit()
+            util_cancel_order(order, db)
             return Ok
 
     if not order:
@@ -154,6 +152,11 @@ def convert_to_equivalent(db: Session, amount: int, base_ticker : str, eq_ticker
         return
 
     return amount * eq_entry.rate
+
+def util_cancel_order(order : BaseOrder, db : Session):
+    order.status = OrderStatus.CANCELLED
+    unfreeze_balance_after_cancel(order, db)
+    db.commit()
 
 
 
