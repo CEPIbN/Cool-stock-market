@@ -140,7 +140,7 @@ resource "yandex_compute_instance_group" "web_group" {
     max_unavailable = 2
     max_expansion   = 3
     max_creating    = 3
-    max_deleting    = 1
+    max_deleting    = 3
   }
 
 }
