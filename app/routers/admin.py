@@ -11,7 +11,7 @@ from app.DTO.Response.Ok import Ok
 from app.DTO.Response.ResponseUser import ResponseUser
 from app.db import get_db
 from app.exceptions import CustomAPIException
-from app.middlewares import get_current_user_from_token
+from app.middlewares import get_current_user
 from app.models.enums.ErrorType import ErrorType
 from app.models.enums.UserRole import UserRole
 from app.models.models import User, Instrument
@@ -23,7 +23,7 @@ router = APIRouter(
 
 @router.delete("/user/{user_id}", response_model=ResponseUser)
 def delete_user(user_id: UUID = Path(title="User Id"),
-                current_user: User = Depends(get_current_user_from_token),
+                current_user: User = Depends(get_current_user),
                 db: Session = Depends(get_db)):
     is_admin(current_user)
     user = validate_user(db, user_id)
@@ -38,7 +38,7 @@ def delete_user(user_id: UUID = Path(title="User Id"),
 
 @router.post("/instrument", response_model=Ok)
 def add_instrument(instrument: InstrumentSchema,
-                    current_user: User = Depends(get_current_user_from_token),
+                    current_user: User = Depends(get_current_user),
                     db: Session = Depends(get_db)):
     is_admin(current_user)
 
@@ -54,7 +54,7 @@ def add_instrument(instrument: InstrumentSchema,
 
 @router.delete("/instrument/{ticker}", response_model=Ok)
 def delete_instrument(ticker: str = Path(),
-                      current_user: User = Depends(get_current_user_from_token),
+                      current_user: User = Depends(get_current_user),
                       db: Session = Depends(get_db)):
     is_admin(current_user)
     instrument = validate_ticker(db, ticker)
@@ -62,6 +62,7 @@ def delete_instrument(ticker: str = Path(),
     db.delete(instrument)
     db.commit()
     return Ok
+
 
 def is_admin(current_user: User):
     if current_user.role != UserRole.ADMIN:

@@ -121,6 +121,18 @@ def upgrade() -> None:
                     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
                     sa.PrimaryKeyConstraint('id')
                     )
+
+    op.create_table('asset_equivalents',
+                    sa.Column('base_ticker', sa.String(), nullable=False),
+                    sa.Column('equivalent_ticker', sa.String(), nullable=False),
+                    sa.Column('rate', sa.Integer(), nullable=False),
+
+                    sa.ForeignKeyConstraint(['base_ticker'], ['instruments.ticker'], ),
+                    sa.ForeignKeyConstraint(['equivalent_ticker'], ['instruments.ticker'], ),
+
+                    sa.PrimaryKeyConstraint('base_ticker', 'equivalent_ticker'),
+                    sa.UniqueConstraint('base_ticker', 'equivalent_ticker', name='eq_base_ticker')
+                    )
     # ### end Alembic commands ###
 
 
@@ -136,4 +148,5 @@ def downgrade() -> None:
     op.drop_table('balances')
     op.drop_table('users')
     op.drop_table('instruments')
+    op.drop_table('asset_equivalents')
     # ### end Alembic commands ###
