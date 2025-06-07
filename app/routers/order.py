@@ -24,7 +24,7 @@ router = APIRouter(
     tags=["order"]
 )
 
-@router.get("/", response_model=list[OrderResponse])
+@router.get("", response_model=list[OrderResponse])
 def get_orders(current_user: User = Depends(get_current_user),
                 db: Session = Depends(get_db)):
     primary_list = list(get_orders_by_user(db, current_user.id))
@@ -46,7 +46,7 @@ def get_order(order_id : UUID,
                              msg=f"Order with id {order_id} doesn't exist",
                              type_error=ErrorType.ORDER_ID)
 
-@router.post("/", response_model=CreateOrderResponse)
+@router.post("", response_model=CreateOrderResponse)
 def create_order(order_body : OrderBody,
                  current_user: User = Depends(get_current_user),
                  db: Session = Depends(get_db)):

@@ -12,7 +12,7 @@ router = APIRouter(
     tags=["user"]
 )
 
-@router.put("/", response_model=Ok)
+@router.put("", response_model=Ok)
 def update_user(user_data : NewUser,
                 current_user: User = Depends(get_current_user),
                 db: Session = Depends(get_db)):
