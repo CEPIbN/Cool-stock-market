@@ -22,7 +22,7 @@ router_admin_balance = APIRouter(
     tags=["admin", "balance"]
 )
 
-@router_balance.get("/")
+@router_balance.get("")
 def get_balance(current_user: User = Depends(get_current_user),
                 db: Session = Depends(get_db)):
     balances = db.query(Balance).filter(current_user.id == Balance.user_id)
