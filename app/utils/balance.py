@@ -14,13 +14,17 @@ def get_available_balance(balance: Balance) -> int:
 def freeze_balance(balance: Balance, qty: int):
     available = get_available_balance(balance)
     if qty > available:
-        raise ValueError("Not enough available balance to freeze.")
+        raise CustomAPIException(loc=["balance", "amount"],
+                                 msg=f"Not enough available balance",
+                                 type_error=ErrorType.NOT_ENOUGH_FOR_WITHDRAW)
     balance.frozen_amount += qty
 
 
 def unfreeze_balance(balance: Balance, qty: int):
     if qty > balance.frozen_amount:
-        raise ValueError("Trying to unfreeze more than frozen.")
+        raise CustomAPIException(loc=["balance", "amount"],
+                                 msg=f"Not enough frozen balance",
+                                 type_error=ErrorType.NOT_ENOUGH_FOR_WITHDRAW)
     balance.frozen_amount -= qty
 
 def unfreeze_balance_after_cancel(order : BaseOrder, db : Session):
@@ -39,7 +43,9 @@ def unfreeze_balance_after_cancel(order : BaseOrder, db : Session):
 
 def spend_frozen_balance(balance: Balance, qty: int):
     if qty > balance.frozen_amount:
-        raise ValueError("Not enough frozen balance to spend.")
+        raise CustomAPIException(loc=["balance", "amount"],
+                                 msg=f"Not enough frozen balance",
+                                 type_error=ErrorType.NOT_ENOUGH_FOR_WITHDRAW)
     balance.frozen_amount -= qty
     balance.amount -= qty
 
