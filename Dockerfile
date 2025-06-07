@@ -11,4 +11,4 @@ RUN chmod +x wait-for-it.sh
 COPY app ./app
 COPY alembic ./alembic
 
-CMD ["/app/wait-for-it.sh", "db:5432", "--", "sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+CMD ["/app/wait-for-it.sh", "db:5432", "--", "sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers"]
