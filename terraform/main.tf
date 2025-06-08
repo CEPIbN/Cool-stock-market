@@ -56,9 +56,9 @@ resource "yandex_mdb_postgresql_cluster" "pg_cluster" {
   config {
     version = "14"
     resources {
-      resource_preset_id = "s2.micro"
-      disk_size          = 30
-      disk_type_id       = "network-hdd"
+      resource_preset_id = "s3-c4-m16"
+      disk_size          = 33
+      disk_type_id       = "network-ssd"
     }
   }
   
