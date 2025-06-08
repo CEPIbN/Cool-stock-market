@@ -87,7 +87,7 @@ data "yandex_compute_image" "ubuntu" {
   family = "ubuntu-2204-lts"
 }
 
-resource "yandex_compute_instance_group" "web_group" {
+resource "yandex_compute_instance_group" "market_group" {
   name               = "web-group"
   service_account_id = var.sa_id
   folder_id          = var.folder_id
@@ -102,12 +102,13 @@ resource "yandex_compute_instance_group" "web_group" {
 
     resources {
       cores  = 2
-      memory = 2
+      memory = 4
     }
 
     boot_disk {
       initialize_params {
         image_id = data.yandex_compute_image.ubuntu.id
+        size     = 30 
       }
     }
 
@@ -121,14 +122,16 @@ resource "yandex_compute_instance_group" "web_group" {
     }
 
     metadata = {
-      ssh-keys  = "ubuntu:${file("~/.ssh/id_rsa.pub")}"
+      ssh-keys  = join("\n", [
+        "ubuntu:${file("~/.ssh/id_rsa.pub")}", 
+        "ubuntu:${file("~/.ssh/yaroslav_key.pub")}"])
       user-data = local.cloud_init
     }
   }
 
   scale_policy {
     fixed_scale {
-      size = 1
+      size = 3
     }
   }
 
@@ -137,7 +140,7 @@ resource "yandex_compute_instance_group" "web_group" {
   }
 
   deploy_policy {
-    max_unavailable = 2
+    max_unavailable = 3
     max_expansion   = 3
     max_creating    = 3
     max_deleting    = 3
@@ -151,17 +154,17 @@ resource "yandex_alb_target_group" "alb_target_group" {
 
   target {
     subnet_id  = yandex_vpc_subnet.subnet-a.id
-    ip_address = yandex_compute_instance_group.web_group.instances[0].network_interface[0].ip_address
+    ip_address = yandex_compute_instance_group.market_group.instances[0].network_interface[0].ip_address
   }
 
   target {
     subnet_id  = yandex_vpc_subnet.subnet-b.id
-    ip_address = yandex_compute_instance_group.web_group.instances[1].network_interface[0].ip_address
+    ip_address = yandex_compute_instance_group.market_group.instances[1].network_interface[0].ip_address
   }
 
   target {
     subnet_id  = yandex_vpc_subnet.subnet-d.id
-    ip_address = yandex_compute_instance_group.web_group.instances[2].network_interface[0].ip_address
+    ip_address = yandex_compute_instance_group.market_group.instances[2].network_interface[0].ip_address
   }
 }
 
@@ -280,4 +283,3 @@ locals {
 
   vpc_id = var.use_existing_vpc ? var.existing_vpc_id : yandex_vpc_network.main[0].id
 }
-
