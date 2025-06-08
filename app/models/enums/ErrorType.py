@@ -7,3 +7,4 @@ class ErrorType(str, Enum):
     AUTHORIZATION = "Permission denied"
     EXISTING_TICKER = "Existing ticker"
     NOT_ENOUGH_FOR_WITHDRAW = "Not valid count tickers"
+    MARKET_ORDER = "Market order error"

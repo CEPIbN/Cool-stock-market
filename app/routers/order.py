@@ -12,12 +12,12 @@ from app.OrderEngine import OrderMatcher
 from app.db import get_db
 from app.exceptions import CustomAPIException
 from app.middlewares import get_current_user
-from app.models.enums.Direction import Direction
 from app.models.enums.ErrorType import ErrorType
 from app.models.enums.OrderStatus import OrderStatus
-from app.models.models import User, LimitOrder, MarketOrder, Balance, BaseOrder, AssetEquivalent
+from app.models.models import User, LimitOrder, MarketOrder, BaseOrder, AssetEquivalent
 from app.routers.admin import validate_ticker
-from app.utils.balance import freeze_balance, validate_balance, unfreeze_balance_after_cancel
+from app.utils.balance_helpers import validate_balance
+from app.utils.order_helpers import util_cancel_order, create_order_entry
 
 router = APIRouter(
     prefix="/api/v1/order",
@@ -51,6 +51,7 @@ def create_order(order_body : OrderBody,
                  current_user: User = Depends(get_current_user),
                  db: Session = Depends(get_db)):
     validate_ticker(db, order_body.ticker)
+    validate_ticker(db, "RUB")
     base_balance, eq_balance, rate = validate_balance(db, order_body, current_user.id)
     order = create_order_entry(order_body, current_user, base_balance, eq_balance, rate)
     db.add(order)
@@ -74,9 +75,7 @@ def cancel_order(order_id : UUID = Path(),
             .first()
         )
         if isinstance(order, BaseOrder):
-            order.status = OrderStatus.CANCELLED
-            unfreeze_balance_after_cancel(order, db)
-            db.commit()
+            util_cancel_order(order, db)
             return Ok
 
     if not order:
@@ -123,26 +122,6 @@ def get_limit_order(order : LimitOrder) -> BaseOrderResponse:
             price=order.price,
         ),
         filled=order.filled,
-    )
-
-def create_order_entry(order_body : OrderBody,
-                       current_user : User,
-                       base_balance : Balance,
-                       eq_balance : Balance,
-                       rate : int) -> BaseOrder:
-    is_buy = order_body.direction == Direction.BUY
-    order_data = order_body.dict(exclude_none=True)
-    # Заморозка средств
-    if is_buy:
-        freeze_balance(eq_balance, order_body.qty * rate)
-    else:
-        freeze_balance(base_balance, order_body.qty)
-    # Создание ордера
-    order_class = LimitOrder if order_body.price else MarketOrder
-    return order_class(
-        user_id=current_user.id,
-        **order_data,
-        **({"rate": rate} if order_class is MarketOrder else {})
     )
 
 def convert_to_equivalent(db: Session, amount: int, base_ticker : str, eq_ticker : str = "RUB"):

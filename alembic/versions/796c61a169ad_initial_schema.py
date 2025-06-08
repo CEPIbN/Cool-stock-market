@@ -78,8 +78,8 @@ def upgrade() -> None:
                     sa.Column('filled', sa.Integer(), nullable=False),
                     sa.Column('timestamp', sa.DateTime(timezone=True), nullable=False),
 
-                    sa.ForeignKeyConstraint(['ticker'], ['instruments.ticker'], ),
-                    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+                    sa.ForeignKeyConstraint(['ticker'], ['instruments.ticker'], ondelete='CASCADE'),
+                    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
                     sa.PrimaryKeyConstraint('id')
                     )
 
@@ -96,8 +96,8 @@ def upgrade() -> None:
                               nullable=False),
                     sa.Column('timestamp', sa.DateTime(timezone=True), nullable=False),
 
-                    sa.ForeignKeyConstraint(['ticker'], ['instruments.ticker'], ),
-                    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+                    sa.ForeignKeyConstraint(['ticker'], ['instruments.ticker'], ondelete='CASCADE'),
+                    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
                     sa.PrimaryKeyConstraint('id')
                     )
 
@@ -107,7 +107,8 @@ def upgrade() -> None:
                     sa.Column('amount', sa.Integer(), nullable=False),
                     sa.Column('price', sa.Integer(), nullable=False),
                     sa.Column('timestamp', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-                    sa.ForeignKeyConstraint(['ticker'], ['instruments.ticker'], ),
+
+                    sa.ForeignKeyConstraint(['ticker'], ['instruments.ticker'], ondelete='CASCADE'),
                     sa.PrimaryKeyConstraint('id')
                     )
 
