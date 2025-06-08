@@ -122,16 +122,16 @@ class OrderMatcher:
 
     def _update_balances(self, order : BaseOrder, matched : LimitOrder, transaction : Transaction):
         if self.is_buy:
-            balance_buy = self._transfer("RUB", order, matched, transaction,
+            balance_buy = self._transfer("RUB", order, matched,
                            transaction.amount * transaction.price)
-            self._transfer(order.ticker, matched, order, transaction,
+            self._transfer(order.ticker, matched, order,
                            transaction.amount)
             unfreeze_remain_after_execution(order, balance_buy, transaction)
 
         else:
-            self._transfer(order.ticker, order, matched, transaction,
+            self._transfer(order.ticker, order, matched,
                            transaction.amount)
-            balance_sell = self._transfer("RUB", matched, order, transaction,
+            balance_sell = self._transfer("RUB", matched, order,
                            transaction.amount * transaction.price)
             unfreeze_remain_after_execution(matched, balance_sell, transaction)
 
