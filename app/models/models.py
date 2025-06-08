@@ -35,6 +35,7 @@ class Instrument(Base):
     balances = relationship("Balance", back_populates="instrument", passive_deletes=True)
     limit_orders = relationship("LimitOrder", back_populates="instrument", passive_deletes=True)
     market_orders = relationship("MarketOrder", back_populates="instrument", passive_deletes=True)
+    transactions = relationship("Transaction", back_populates="instrument", passive_deletes=True)
 
     __table_args__ = (
         CheckConstraint("ticker ~ '^[A-Z]{2,10}$'", name='check_ticker_format'),
@@ -60,11 +61,12 @@ class Transaction(Base):
     __tablename__ = "transactions"
 
     id = Column(Integer, primary_key=True, index=True)
-    ticker = Column(String, ForeignKey("instruments.ticker"), nullable=False)
+    ticker = Column(String, ForeignKey("instruments.ticker", ondelete="CASCADE"), nullable=False)
     amount = Column(Integer, nullable=False)
     price = Column(Integer, nullable=False)
     timestamp = Column(DateTime(timezone=True), nullable=False, default=datetime.now())
 
+    instrument = relationship("Instrument", back_populates="transactions")
 
 class Balance(Base):
     __tablename__ = "balances"

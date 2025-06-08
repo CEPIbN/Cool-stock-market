@@ -6,15 +6,16 @@ from app.models.enums.Direction import Direction
 from app.models.enums.ErrorType import ErrorType
 from app.models.enums.OrderStatus import OrderStatus
 from app.models.models import BaseOrder, MarketOrder, LimitOrder, Transaction, Balance
-from app.routers.order import util_cancel_order
-from app.utils.balance import spend_frozen_balance
+from app.utils.order_helpers import util_cancel_order
+from app.utils.balance_helpers import spend_frozen_balance, unfreeze_remain_after_execution
 
 
 class OrderMatcher:
     def __init__(self, db: Session):
         self.db = db
-
-    def match(self, order: BaseOrder):
+        self.is_buy : bool = False
+    def match(self, order : BaseOrder):
+        self.is_buy = order.direction == Direction.BUY
         if isinstance(order, MarketOrder):
             return self._match_market_order(order)
         return self._match_limit_order(order)
@@ -23,8 +24,7 @@ class OrderMatcher:
         matched_orders = self._find_matching_orders(order)
         total_available = sum(o.qty - o.filled for o in matched_orders)
         if total_available < order.qty:
-            order.status = OrderStatus.CANCELLED
-            self.db.commit()
+            util_cancel_order(order, self.db)
             raise CustomAPIException(loc=["path", "order_id"],
                                      msg=f"Market Order has cancelled",
                                      type_error=ErrorType.ORDER_ID)
@@ -59,12 +59,11 @@ class OrderMatcher:
                 executed = True
                 break
 
-        self._finalize_order_status(order, executed)
+        self._finalize_limit_order_status(order, executed)
         self.db.commit()
 
     def _find_matching_orders(self, order: BaseOrder) -> list[LimitOrder]:
-        is_buy = order.direction == Direction.BUY
-        ask_direction = Direction.SELL if is_buy else Direction.BUY
+        ask_direction = Direction.SELL if self.is_buy else Direction.BUY
         query = self.db.query(LimitOrder).filter(
             LimitOrder.ticker == order.ticker,
             LimitOrder.direction == ask_direction,
@@ -72,12 +71,12 @@ class OrderMatcher:
         )
         if isinstance(order, LimitOrder):
             price_condition = (
-                LimitOrder.price <= order.price if is_buy else LimitOrder.price >= order.price
+                LimitOrder.price <= order.price if self.is_buy else LimitOrder.price >= order.price
             )
             query = query.filter(price_condition)
 
         query = query.order_by(
-            asc(LimitOrder.price) if is_buy else desc(LimitOrder.price),
+            asc(LimitOrder.price) if self.is_buy else desc(LimitOrder.price),
             LimitOrder.timestamp
         )
         return query.all()
@@ -88,8 +87,8 @@ class OrderMatcher:
         if hasattr(order, 'filled'):
             order.filled += matched_qty
 
-        trade_price = self._record_transaction(order, matched, matched_qty)
-        self._update_balances(order, matched, matched_qty, trade_price)
+        transaction = self._record_transaction(order, matched, matched_qty)
+        self._update_balances(order, matched, transaction)
 
     def _change_status_match_order(self, matched : LimitOrder, matched_qty):
         matched.filled += matched_qty
@@ -104,41 +103,52 @@ class OrderMatcher:
 
         return order.qty == matched_qty
 
-    def _finalize_order_status(self, order: BaseOrder, executed : bool):
+    def _finalize_limit_order_status(self, order: LimitOrder, executed : bool):
         if executed:
             order.status = OrderStatus.EXECUTED
 
-        elif hasattr(order, 'filled') and order.filled > 0:
+        elif order.filled > 0:
             order.status = OrderStatus.PARTIALLY_EXECUTED
 
-    def _record_transaction(self, order : BaseOrder, matched : LimitOrder, matched_qty : int):
+    def _record_transaction(self, order : BaseOrder, matched : LimitOrder, matched_qty : int) -> Transaction:
         trade_price = matched.price  # matched всегда лимитный ордер
-        #trade_price = matched.price if hasattr(matched, 'price') else order.price
         transaction = Transaction(
             ticker=order.ticker,
             amount=matched_qty,
             price=trade_price
         )
         self.db.add(transaction)
-        return trade_price
+        return transaction
 
-    def _update_balances(self, order : BaseOrder, matched : LimitOrder, qty, price : int):
-        if order.direction == Direction.BUY:
-            self._transfer("RUB", order.user_id, matched.user_id, qty * price)
-            self._transfer(order.ticker, matched.user_id, order.user_id, qty)
+    def _update_balances(self, order : BaseOrder, matched : LimitOrder, transaction : Transaction):
+        if self.is_buy:
+            balance_buy = self._transfer("RUB", order, matched,
+                           transaction.amount * transaction.price)
+            self._transfer(order.ticker, matched, order,
+                           transaction.amount)
+            unfreeze_remain_after_execution(order, balance_buy, transaction)
+
         else:
-            self._transfer(order.ticker, order.user_id, matched.user_id, qty)
-            self._transfer("RUB", matched.user_id, order.user_id, qty * price)
+            self._transfer(order.ticker, order, matched,
+                           transaction.amount)
+            balance_sell = self._transfer("RUB", matched, order,
+                           transaction.amount * transaction.price)
+            unfreeze_remain_after_execution(matched, balance_sell, transaction)
 
-    def _transfer(self, asset: str, from_user: int, to_user: int, amount: int):
+    def _transfer(self, asset: str,
+                  order: BaseOrder,
+                  matched: LimitOrder,
+                  amount : int):
         if amount <= 0:
             return
 
-        from_balance = self.db.get(Balance, (from_user, asset))
-        to_balance = self.db.get(Balance, (to_user, asset))
+        from_balance = self.db.get(Balance, (order.user_id, asset))
+        to_balance = self.db.get(Balance, (matched.user_id, asset))
 
         if from_balance:
             spend_frozen_balance(from_balance, amount)
-            #from_balance.amount -= amount
+
         if to_balance:
             to_balance.amount += amount
+
+        return from_balance
