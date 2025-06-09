@@ -65,16 +65,21 @@ def unfreeze_remain_after_execution(order: BaseOrder,
     # Не допустить отрицательного frozen_amount
     balance.frozen_amount = max(balance.frozen_amount - to_unfreeze, 0)
 
+def ensure_balances_exist(db: Session, user_id: UUID, tickers: list[str]):
+    created = False
+    for ticker in tickers:
+        balance = db.get(Balance, (user_id, ticker))
+        if not balance:
+            db.add(Balance(user_id=user_id, ticker=ticker))
+            created = True
+    if created:
+        db.commit()
+
 def validate_balance(db : Session, order_body : OrderBody, user_id : UUID) -> [Balance, Balance, int]:
+    ensure_balances_exist(db, user_id, [order_body.ticker, 'RUB'])
     rate = order_body.price if hasattr(order_body, 'price') else estimate_market_order_rate(order_body, db)
     base_balance = db.get(Balance, (user_id, order_body.ticker))
-    if not base_balance:
-        base_balance = Balance(user_id=user_id, ticker=order_body.ticker)
-        db.add(base_balance)
     eq_balance = db.get(Balance, (user_id, 'RUB'))
-    if not eq_balance:
-        eq_balance = Balance(user_id=user_id, ticker='RUB')
-        db.add(eq_balance)
     check_balance(order_body.direction,
                   rate,
                   order_body.qty,
