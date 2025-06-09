@@ -85,22 +85,6 @@ resource "yandex_mdb_postgresql_database" "market-db" {
   depends_on = [yandex_mdb_postgresql_user.admin]
 }
 
-resource "null_resource" "set_connection_limit" {
-  provisioner "local-exec" {
-    command = <<EOT
-      PGPASSWORD="${var.db_password}" psql \
-        --host=${yandex_mdb_postgresql_cluster.pg_cluster.host[0].fqdn} \
-        --port=6432 \
-        --username=${yandex_mdb_postgresql_user.admin.name} \
-        --dbname=${yandex_mdb_postgresql_database.market-db.name} \
-        --file=./set_conn_limit.sql \
-        --set ON_ERROR_STOP=on
-    EOT
-  }
-
-  depends_on = [yandex_mdb_postgresql_cluster.pg_cluster,
-    yandex_mdb_postgresql_user.admin]
-}
 
 # Compute instance group
 data "yandex_compute_image" "ubuntu" {
