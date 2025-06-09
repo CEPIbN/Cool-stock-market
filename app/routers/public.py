@@ -45,7 +45,7 @@ def get_instruments(db: Session = Depends(get_db)):
     return db.query(Instrument).all()
 
 @router.get("/orderbook/{ticker}", response_model=L2OrderBook)
-def get_orderbook(ticker: str = Path(),
+def get_orderbook(ticker: str = Path(pattern="^[A-Z]{2,10}$"),
                   limit: int = Query(default=10, gt=0, le=25),
                   db: Session = Depends(get_db)):
     bid_levels = (
@@ -83,7 +83,7 @@ def get_orderbook(ticker: str = Path(),
 
 
 @router.get("/transactions/{ticker}", response_model=list[TransactionResponse])
-def get_transactions(ticker: str = Path(),
+def get_transactions(ticker: str = Path(pattern="^[A-Z]{2,10}$"),
                      limit: int = Query(default=10, gt=0, le=25),
                      db: Session = Depends(get_db)):
     validate_ticker(db, ticker)
