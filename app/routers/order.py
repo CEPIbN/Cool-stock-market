@@ -134,11 +134,6 @@ def convert_to_equivalent(db: Session, amount: int, base_ticker : str, eq_ticker
 
     return amount * eq_entry.rate
 
-def util_cancel_order(order : BaseOrder, db : Session):
-    order.status = OrderStatus.CANCELLED
-    unfreeze_balance_after_cancel(order, db)
-    db.commit()
-
 
 
 
