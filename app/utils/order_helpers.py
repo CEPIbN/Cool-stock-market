@@ -18,16 +18,18 @@ def create_order_entry(order_body : OrderBody,
                        eq_balance : Balance,
                        rate : int) -> BaseOrder:
     is_buy = order_body.direction == Direction.BUY
+    is_market = not hasattr(order_body, 'price')
     order_data = order_body.dict(exclude_none=True)
+    if is_market:
+        order_data["rate"] = rate
     # Заморозка средств
     if is_buy:
         freeze_balance(eq_balance, order_body.qty * rate)
     else:
         freeze_balance(base_balance, order_body.qty)
+
     # Создание ордера
-    order_class = LimitOrder if order_body.price else MarketOrder
+    order_class = MarketOrder if is_market else LimitOrder
     return order_class(
         user_id=current_user.id,
-        **order_data,
-        **({"rate": rate} if order_class is MarketOrder else {})
-    )
+        **order_data)
