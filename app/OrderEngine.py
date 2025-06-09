@@ -39,7 +39,7 @@ class OrderMatcher:
 
         if executed:
             order.status = OrderStatus.EXECUTED
-            self.db.commit()
+            #self.db.commit()
         else:
             util_cancel_order(order, self.db)
             raise CustomAPIException(loc=["path", "order_id"],
@@ -60,7 +60,7 @@ class OrderMatcher:
                 break
 
         self._finalize_limit_order_status(order, executed)
-        self.db.commit()
+        #self.db.commit()
 
     def _find_matching_orders(self, order: BaseOrder) -> list[LimitOrder]:
         ask_direction = Direction.SELL if self.is_buy else Direction.BUY

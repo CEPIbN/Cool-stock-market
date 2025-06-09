@@ -72,8 +72,8 @@ def ensure_balances_exist(db: Session, user_id: UUID, tickers: list[str]):
         if not balance:
             db.add(Balance(user_id=user_id, ticker=ticker))
             created = True
-    if created:
-        db.commit()
+    # if created:
+    #     db.commit()
 
 def validate_balance(db : Session, order_body : OrderBody, user_id : UUID) -> [Balance, Balance, int]:
     ensure_balances_exist(db, user_id, [order_body.ticker, 'RUB'])
