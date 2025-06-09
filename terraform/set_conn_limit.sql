@@ -1,0 +1,1 @@
+ALTER ROLE "market-owner" CONNECTION LIMIT 500;
