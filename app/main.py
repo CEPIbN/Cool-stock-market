@@ -23,7 +23,7 @@ app.add_exception_handler(RequestValidationError, custom_http_validation_excepti
 @app.exception_handler(CustomAPIException)
 async def unhandled_exception_handler(request: Request, exc: CustomAPIException):
     return JSONResponse(
-        status_code=422,
+        status_code=exc.status_code,
         content=HTTPValidationError(
             detail=[ValidationErrorDetail(loc=exc.loc,
                                           msg=exc.msg,
