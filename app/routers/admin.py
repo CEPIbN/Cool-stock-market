@@ -12,9 +12,11 @@ from app.DTO.Response.ResponseUser import ResponseUser
 from app.db import get_db
 from app.exceptions import CustomAPIException
 from app.middlewares import get_current_user
+from app.models.enums.Direction import Direction
 from app.models.enums.ErrorType import ErrorType
 from app.models.enums.UserRole import UserRole
-from app.models.models import User, Instrument
+from app.models.models import User, Instrument, LimitOrder
+from app.utils.order_helpers import util_cancel_order
 
 router = APIRouter(
     prefix="/api/v1/admin",
@@ -58,6 +60,8 @@ def delete_instrument(ticker: str = Path(),
                       db: Session = Depends(get_db)):
     is_admin(current_user)
     instrument = validate_ticker(db, ticker)
+    for order in db.query(LimitOrder).filter_by(ticker=ticker, direction=Direction.BUY).all():
+        util_cancel_order(order, db)
 
     db.delete(instrument)
     db.commit()
