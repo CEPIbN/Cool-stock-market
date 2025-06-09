@@ -98,7 +98,8 @@ resource "null_resource" "set_connection_limit" {
     EOT
   }
 
-  depends_on = [yandex_mdb_postgresql_user.admin]
+  depends_on = [yandex_mdb_postgresql_cluster.pg_cluster,
+    yandex_mdb_postgresql_user.admin]
 }
 
 # Compute instance group
