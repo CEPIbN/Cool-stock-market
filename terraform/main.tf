@@ -60,11 +60,13 @@ resource "yandex_mdb_postgresql_cluster" "pg_cluster" {
       disk_size          = 33
       disk_type_id       = "network-ssd"
     }
+    
   }
   
   host {
     zone      = "ru-central1-d"
     subnet_id = yandex_vpc_subnet.subnet-d.id
+    assign_public_ip = true
   }
 }
 
@@ -72,6 +74,7 @@ resource "yandex_mdb_postgresql_user" "admin" {
   cluster_id = yandex_mdb_postgresql_cluster.pg_cluster.id
   name       = "market-owner"
   password   = var.db_password
+
 }
 
 resource "yandex_mdb_postgresql_database" "market-db" {
