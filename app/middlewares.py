@@ -18,7 +18,8 @@ def get_current_user(
     if not token or not token.startswith("TOKEN "):
         raise CustomAPIException(loc=["header", "authorization"],
                                  msg="Invalid or missing Authorization header",
-                                 type_error=ErrorType.AUTHORIZATION)
+                                 type_error=ErrorType.AUTHORIZATION,
+                                 status_code=401)
 
     api_key = token.removeprefix("TOKEN ").strip()
 
@@ -26,6 +27,7 @@ def get_current_user(
     if not user:
         raise CustomAPIException(loc=["header", "authorization"],
                                  msg="Invalid API token",
-                                 type_error=ErrorType.AUTHORIZATION)
+                                 type_error=ErrorType.AUTHORIZATION,
+                                 status_code=401)
 
     return user

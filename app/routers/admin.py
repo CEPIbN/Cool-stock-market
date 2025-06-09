@@ -72,7 +72,8 @@ def is_admin(current_user: User):
     if current_user.role != UserRole.ADMIN:
         raise CustomAPIException(loc=["header", "authorization"],
                                  msg="You aren't an admin!",
-                                 type_error=ErrorType.AUTHORIZATION)
+                                 type_error=ErrorType.AUTHORIZATION,
+                                 status_code=401)
 
 def validate_user(db: Session, user_id: UUID):
     user = db.query(User).filter(user_id == User.id).first()
