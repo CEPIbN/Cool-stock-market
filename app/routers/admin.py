@@ -55,7 +55,7 @@ def add_instrument(instrument: InstrumentSchema,
     return Ok
 
 @router.delete("/instrument/{ticker}", response_model=Ok)
-def delete_instrument(ticker: str = Path(),
+def delete_instrument(ticker: str = Path(pattern="^[A-Z]{2,10}$"),
                       current_user: User = Depends(get_current_user),
                       db: Session = Depends(get_db)):
     is_admin(current_user)

@@ -12,7 +12,7 @@ class CustomAPIException(Exception):
     def __init__(self, loc: List[Union[str, int]],
                  msg: str,
                  type_error: ErrorType,
-                 status_code : int = 422):
+                 status_code : int = 400):
         self.loc = loc
         self.msg = msg
         self.type = type_error

@@ -31,7 +31,7 @@ def get_orders(current_user: User = Depends(get_current_user),
     return sorted(primary_list, key=lambda order: order.timestamp, reverse=True)
 
 @router.get("/{order_id}")
-def get_order(order_id : UUID,
+def get_order(order_id : UUID = Path(),
               current_user: User = Depends(get_current_user),
               db: Session = Depends(get_db)):
     for model, to_response in [
