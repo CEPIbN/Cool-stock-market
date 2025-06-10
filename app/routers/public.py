@@ -1,4 +1,4 @@
-from sqlalchemy import func
+from sqlalchemy import func, select
 from uuid import uuid4
 
 from fastapi import APIRouter
@@ -42,7 +42,8 @@ def register_user(data: NewUser,
 
 @router.get("/instrument",  response_model=list[InstrumentSchema])
 def get_instruments(db: Session = Depends(get_db)):
-    return db.query(Instrument).all()
+    stmt = select(Instrument)
+    return db.execute(stmt).scalars().all()
 
 @router.get("/orderbook/{ticker}", response_model=L2OrderBook)
 def get_orderbook(ticker: str = Path(pattern="^[A-Z]{2,10}$"),
@@ -87,4 +88,10 @@ def get_transactions(ticker: str = Path(pattern="^[A-Z]{2,10}$"),
                      limit: int = Query(default=10, gt=0, le=25),
                      db: Session = Depends(get_db)):
     validate_ticker(db, ticker)
-    return db.query(Transaction).order_by(Transaction.timestamp.desc()).limit(limit).all()
+    stmt = (
+        select(Transaction).order_by(
+            Transaction.timestamp.desc()
+        )
+        .limit(limit)
+    )
+    return db.execute(stmt).scalars().all()
