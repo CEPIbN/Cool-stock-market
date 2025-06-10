@@ -5,6 +5,7 @@ from app.DTO.Request.CreateOrderBody import OrderBody
 from app.exceptions import CustomAPIException
 from app.models.enums.Direction import Direction
 from app.models.enums.ErrorType import ErrorType
+from app.models.enums.OrderStatus import OrderStatus
 from app.models.models import Balance, BaseOrder, MarketOrder, LimitOrder, Transaction
 
 
@@ -72,12 +73,10 @@ def ensure_balances_exist(db: Session, user_id: UUID, tickers: list[str]):
         if not balance:
             db.add(Balance(user_id=user_id, ticker=ticker))
             created = True
-    if created:
-        db.commit()
 
 def validate_balance(db : Session, order_body : OrderBody, user_id : UUID) -> [Balance, Balance, int]:
     ensure_balances_exist(db, user_id, [order_body.ticker, 'RUB'])
-    rate = order_body.price if hasattr(order_body, 'price') else estimate_market_order_rate(order_body, db)
+    rate = estimate_market_order_rate(order_body, db) if order_body.price is None else order_body.price
     base_balance = db.get(Balance, (user_id, order_body.ticker))
     eq_balance = db.get(Balance, (user_id, 'RUB'))
     check_balance(order_body.direction,
@@ -117,7 +116,7 @@ def estimate_market_order_rate(order_body : OrderBody, db: Session) -> int:
         .filter(LimitOrder.ticker == order_body.ticker,
                 LimitOrder.direction == answer_direction,
                 (LimitOrder.qty - LimitOrder.filled) >= order_body.qty,
-                LimitOrder.status.in_(["NEW", "PARTIALLY_EXECUTED"]))
+                LimitOrder.status.in_([OrderStatus.NEW, OrderStatus.PARTIALLY_EXECUTED]))
         .order_by(LimitOrder.price.asc() if is_buy else LimitOrder.price.desc())
         .first()
     )

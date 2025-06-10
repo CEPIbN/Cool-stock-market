@@ -18,7 +18,7 @@ def create_order_entry(order_body : OrderBody,
                        eq_balance : Balance,
                        rate : int) -> BaseOrder:
     is_buy = order_body.direction == Direction.BUY
-    is_market = not hasattr(order_body, 'price')
+    is_market : bool = order_body.price is None
     order_data = order_body.dict(exclude_none=True)
     if is_market:
         order_data["rate"] = rate

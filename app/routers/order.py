@@ -55,10 +55,11 @@ def create_order(order_body : OrderBody,
     base_balance, eq_balance, rate = validate_balance(db, order_body, current_user.id)
     order = create_order_entry(order_body, current_user, base_balance, eq_balance, rate)
     db.add(order)
-    db.commit()
+    db.flush()
     db.refresh(order)
 
     OrderMatcher(db).match(order)
+    db.commit()
     return CreateOrderResponse(order_id=order.id)
 
 @router.delete("/{order_id}", response_model=Ok)
