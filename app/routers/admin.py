@@ -1,3 +1,4 @@
+from sqlalchemy import select
 from uuid import UUID
 
 from fastapi import APIRouter
@@ -14,8 +15,10 @@ from app.exceptions import CustomAPIException
 from app.middlewares import get_current_user
 from app.models.enums.Direction import Direction
 from app.models.enums.ErrorType import ErrorType
+from app.models.enums.OrderStatus import OrderStatus
 from app.models.enums.UserRole import UserRole
 from app.models.models import User, Instrument, LimitOrder
+from app.utils.balance_helpers import unfreeze_balance_after_cancel
 from app.utils.order_helpers import util_cancel_order
 
 router = APIRouter(
@@ -60,8 +63,11 @@ def delete_instrument(ticker: str = Path(pattern="^[A-Z]{2,10}$"),
                       db: Session = Depends(get_db)):
     is_admin(current_user)
     instrument = validate_ticker(db, ticker)
-    for order in db.query(LimitOrder).filter_by(ticker=ticker, direction=Direction.BUY).all():
-        util_cancel_order(order, db)
+    for order in (db.execute(select(LimitOrder).
+                                    filter_by(ticker=ticker, direction=Direction.BUY).with_for_update())
+            .scalars().all()):
+        order.status = OrderStatus.CANCELLED
+        unfreeze_balance_after_cancel(order, db)
 
     db.delete(instrument)
     db.commit()

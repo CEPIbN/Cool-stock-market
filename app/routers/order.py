@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Path
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from typing_extensions import Generator
 from uuid import UUID
@@ -38,7 +39,15 @@ def get_order(order_id : UUID = Path(),
         (MarketOrder, get_market_order),
         (LimitOrder, get_limit_order)
     ]:
-        order = db.query(model).filter_by(user_id=current_user.id, id=order_id).first()
+        order = (
+            db.execute(
+                select(model).filter_by(
+                    user_id=current_user.id, id=order_id
+                )
+            )
+            .scalars()
+            .first()
+        )
         if order and order.status != OrderStatus.CANCELLED:
             return to_response(order)
 
@@ -58,6 +67,12 @@ def create_order(order_body : OrderBody,
     db.flush()
     db.refresh(order)
 
+    # Блокировка перед матчингом
+    order = db.execute(select(order.__class__) \
+        .filter_by(id=order.id) \
+        .with_for_update()) \
+        .scalars().one()
+
     OrderMatcher(db).match(order)
     db.commit()
     return CreateOrderResponse(order_id=order.id)
@@ -70,11 +85,15 @@ def cancel_order(order_id : UUID = Path(),
         (MarketOrder, get_market_order),
         (LimitOrder, get_limit_order)
     ]:
-        order = (db.query(model)
-            .filter_by(user_id=current_user.id, id=order_id)
-            .filter(model.status.in_([OrderStatus.NEW, OrderStatus.PARTIALLY_EXECUTED]))
-            .first()
+        stmt = (
+            select(model)
+                .filter_by(
+                    user_id=current_user.id, id=order_id
+                )
+                .filter(model.status.in_([OrderStatus.NEW, OrderStatus.PARTIALLY_EXECUTED]))
+                .with_for_update()
         )
+        order = db.execute(stmt).scalars().first()
         if isinstance(order, BaseOrder):
             util_cancel_order(order, db)
             return Ok
@@ -90,10 +109,16 @@ def get_orders_by_user(db: Session, user_id: UUID) -> Generator[OrderResponse, N
         (MarketOrder, get_market_order),
         (LimitOrder, get_limit_order)
     ]:
-        orders = (db.query(model)
-        .filter(model.user_id == user_id,
-        model.status.in_(target_statuses))
-        .all())
+        orders = (
+            db.execute(
+                select(model).where(
+                    (model.user_id == user_id) &
+                    model.status.in_(target_statuses)
+                )
+            )
+            .scalars()
+            .all()
+        )
         for order in orders:
             yield to_response(order)
 

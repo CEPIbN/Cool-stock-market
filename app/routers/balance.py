@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from starlette.responses import JSONResponse
 
@@ -25,7 +26,11 @@ router_admin_balance = APIRouter(
 @router_balance.get("")
 def get_balance(current_user: User = Depends(get_current_user),
                 db: Session = Depends(get_db)):
-    balances = db.query(Balance).filter(current_user.id == Balance.user_id)
+    stmt = select(Balance).where(
+        (Balance.user_id == current_user.id) &
+        (Balance.amount > 0)
+    ).with_for_update()
+    balances = db.execute(stmt).scalars().all()
     balances_dict = {i.ticker: i.amount for i in balances}
     return JSONResponse(content=balances_dict, status_code=200)
 
@@ -34,11 +39,14 @@ def deposit_balance(deposit_data: DepositRequest,
                     current_user: User = Depends(get_current_user),
                     db: Session = Depends(get_db)):
     is_admin(current_user)
-
     user = validate_user(db, deposit_data.user_id)
     instrument = validate_ticker(db, deposit_data.ticker)
 
-    balance = db.query(Balance).filter_by(user_id=user.id, ticker=instrument.ticker).first()
+    stmt = select(Balance).where(
+        (Balance.user_id == user.id) &
+        (Balance.ticker == instrument.ticker)
+    ).with_for_update()
+    balance = db.execute(stmt).scalars().first()
     if not balance:
         balance = Balance(user_id=user.id, ticker=instrument.ticker, amount=0)
         db.add(balance)
@@ -55,7 +63,11 @@ def withdraw(withdraw_data: WithdrawRequest,
     user = validate_user(db, withdraw_data.user_id)
     instrument = validate_ticker(db, withdraw_data.ticker)
 
-    balance = db.query(Balance).filter_by(user_id=user.id, ticker=instrument.ticker).first()
+    stmt = select(Balance).where(
+        (Balance.user_id == user.id) &
+        (Balance.ticker == instrument.ticker)
+    ).with_for_update()
+    balance = db.execute(stmt).scalars().first()
     if not balance or (balance.amount-balance.frozen_amount) < withdraw_data.amount:
         raise CustomAPIException(loc=["body", "amount"],
                                  msg=f"Not enough tickers {instrument.ticker}",

@@ -1,3 +1,4 @@
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from uuid import UUID
 
@@ -45,7 +46,7 @@ def unfreeze_balance_after_cancel(order : BaseOrder, db : Session):
 def spend_frozen_balance(balance: Balance, qty : int):
     if qty > balance.frozen_amount:
         raise CustomAPIException(loc=["balance", "amount"],
-                                 msg=f"Not enough frozen balance",
+                                 msg=f"Not enough balance for execute order",
                                  type_error=ErrorType.NOT_ENOUGH_FOR_WITHDRAW)
     balance.frozen_amount -= qty
     balance.amount -= qty
@@ -74,11 +75,20 @@ def ensure_balances_exist(db: Session, user_id: UUID, tickers: list[str]):
             db.add(Balance(user_id=user_id, ticker=ticker))
             created = True
 
+    if created:
+        db.flush()
+
 def validate_balance(db : Session, order_body : OrderBody, user_id : UUID) -> [Balance, Balance, int]:
     ensure_balances_exist(db, user_id, [order_body.ticker, 'RUB'])
     rate = estimate_market_order_rate(order_body, db) if order_body.price is None else order_body.price
-    base_balance = db.get(Balance, (user_id, order_body.ticker))
-    eq_balance = db.get(Balance, (user_id, 'RUB'))
+    stmt = (select(Balance)
+            .where((Balance.user_id == user_id) & (Balance.ticker == order_body.ticker))
+            .with_for_update())
+    base_balance = db.execute(stmt).scalars().first()
+    stmt = (select(Balance)
+            .where((Balance.user_id == user_id) & (Balance.ticker == 'RUB'))
+            .with_for_update())
+    eq_balance = db.execute(stmt).scalars().first()
     check_balance(order_body.direction,
                   rate,
                   order_body.qty,
@@ -112,12 +122,16 @@ def estimate_market_order_rate(order_body : OrderBody, db: Session) -> int:
     is_buy = order_body.direction == Direction.BUY
     answer_direction = Direction.SELL if is_buy else Direction.BUY
     best_match = (
-        db.query(LimitOrder)
-        .filter(LimitOrder.ticker == order_body.ticker,
-                LimitOrder.direction == answer_direction,
-                (LimitOrder.qty - LimitOrder.filled) >= order_body.qty,
-                LimitOrder.status.in_([OrderStatus.NEW, OrderStatus.PARTIALLY_EXECUTED]))
-        .order_by(LimitOrder.price.asc() if is_buy else LimitOrder.price.desc())
+        db.execute(
+            select(LimitOrder).where(
+                (LimitOrder.ticker == order_body.ticker) &
+                (LimitOrder.direction == answer_direction) &
+                ((LimitOrder.qty - LimitOrder.filled) >= order_body.qty) &
+                LimitOrder.status.in_([OrderStatus.NEW, OrderStatus.PARTIALLY_EXECUTED])
+            )
+            .order_by(LimitOrder.price.asc() if is_buy else LimitOrder.price.desc())
+        )
+        .scalars()
         .first()
     )
     if best_match and is_buy:
@@ -126,9 +140,13 @@ def estimate_market_order_rate(order_body : OrderBody, db: Session) -> int:
         return int(best_match.price)
 
     last_trade = (
-        db.query(Transaction)
-        .filter(Transaction.ticker == order_body.ticker)
-        .order_by(Transaction.timestamp.desc())
+        db.execute(
+            select(Transaction).where(
+                Transaction.ticker == order_body.ticker
+            )
+            .order_by(Transaction.timestamp.desc())
+        )
+        .scalars()
         .first()
     )
     if last_trade:
