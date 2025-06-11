@@ -66,6 +66,7 @@ def delete_instrument(ticker: str = Path(pattern="^[A-Z]{2,10}$"),
     orders = db.execute(
         select(LimitOrder)
         .filter_by(ticker=ticker, direction=Direction.BUY)
+        .order_by(LimitOrder.id)
         .with_for_update()
     ).scalars().all()
 
@@ -78,6 +79,7 @@ def delete_instrument(ticker: str = Path(pattern="^[A-Z]{2,10}$"),
     balances = db.execute(
         select(Balance)
         .where(tuple_(Balance.user_id, Balance.ticker).in_(balance_keys))
+        .order_by(Balance.user_id, Balance.ticker)
         .with_for_update()
     ).scalars().all()
 

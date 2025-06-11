@@ -1,4 +1,4 @@
-from sqlalchemy import desc, asc, tuple_, select
+from sqlalchemy import desc, asc, select
 from sqlalchemy.orm import Session
 from uuid import UUID
 
