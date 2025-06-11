@@ -57,7 +57,7 @@ resource "yandex_mdb_postgresql_cluster" "pg_cluster" {
     version = "14"
     resources {
       resource_preset_id = "s3-c4-m16"
-      disk_size          = 33
+      disk_size          = 100
       disk_type_id       = "network-ssd"
     }
     
@@ -66,6 +66,18 @@ resource "yandex_mdb_postgresql_cluster" "pg_cluster" {
   host {
     zone      = "ru-central1-d"
     subnet_id = yandex_vpc_subnet.subnet-d.id
+    assign_public_ip = true
+  }
+  
+  host {
+    zone      = "ru-central1-a"
+    subnet_id = yandex_vpc_subnet.subnet-a.id
+    assign_public_ip = true
+  }
+  
+  host {
+    zone      = "ru-central1-b"
+    subnet_id = yandex_vpc_subnet.subnet-b.id
     assign_public_ip = true
   }
 }
@@ -112,7 +124,7 @@ resource "yandex_compute_instance_group" "market_group" {
     boot_disk {
       initialize_params {
         image_id = data.yandex_compute_image.ubuntu.id
-        size     = 30 
+        size     = 33 
       }
     }
 
