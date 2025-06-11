@@ -90,7 +90,8 @@ def get_transactions(ticker: str = Path(pattern="^[A-Z]{2,10}$"),
     validate_ticker(db, ticker)
     stmt = (
         select(Transaction).order_by(
-            Transaction.timestamp.desc()
+            Transaction.timestamp.desc(),
+            Transaction.amount.desc()
         )
         .limit(limit)
     )

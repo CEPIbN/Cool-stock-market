@@ -64,7 +64,7 @@ class Transaction(Base):
     ticker = Column(String, ForeignKey("instruments.ticker", ondelete="CASCADE"), nullable=False)
     amount = Column(Integer, nullable=False)
     price = Column(Integer, nullable=False)
-    timestamp = Column(DateTime(timezone=True), nullable=False, default=datetime.now())
+    timestamp = Column(DateTime(timezone=True), nullable=False, default=datetime.now)
 
     instrument = relationship("Instrument", back_populates="transactions")
 
@@ -89,7 +89,7 @@ class Deposit(Base):
     user_id = Column(UUID, ForeignKey("users.id"), nullable=False)
     ticker = Column(String, ForeignKey("instruments.ticker"), nullable=False)
     amount = Column(Integer, nullable=False)
-    timestamp = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    timestamp = Column(DateTime(timezone=True), nullable=False, default=datetime.now)
 
     __table_args__ = (
         CheckConstraint("amount > 0", name="check_deposit_amount_positive"),
@@ -103,7 +103,7 @@ class Withdrawal(Base):
     user_id = Column(UUID, ForeignKey("users.id"), nullable=False)
     ticker = Column(String, ForeignKey("instruments.ticker"), nullable=False)
     amount = Column(Integer, nullable=False)
-    timestamp = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    timestamp = Column(DateTime(timezone=True), nullable=False, default=datetime.now)
 
     __table_args__ = (
         CheckConstraint("amount > 0", name="check_withdrawal_amount_positive"),
@@ -118,7 +118,7 @@ class BaseOrder(Base):
     direction = Column(Enum(Direction, name="direction"), nullable=False)
     qty = Column(Integer, nullable=False)
     status = Column(Enum(OrderStatus), nullable=False, default=OrderStatus.NEW)
-    timestamp = Column(DateTime(timezone=True), nullable=False, default=datetime.now())
+    timestamp = Column(DateTime(timezone=True), nullable=False, default=datetime.now)
 
 class LimitOrder(BaseOrder):
     __tablename__ = "limit_orders"

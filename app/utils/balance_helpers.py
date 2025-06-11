@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import select, tuple_
 from sqlalchemy.orm import Session
 from uuid import UUID
 
@@ -29,14 +29,12 @@ def unfreeze_balance(balance: Balance, qty: int):
                                  type_error=ErrorType.NOT_ENOUGH_FOR_WITHDRAW)
     balance.frozen_amount -= qty
 
-def unfreeze_balance_after_cancel(order : BaseOrder, db : Session):
+def unfreeze_balance_after_cancel(order : BaseOrder, balance : BaseOrder, db : Session):
     is_buy = order.direction == Direction.BUY
-    ticker = "RUB" if is_buy else order.ticker
-    balance = db.get(Balance, (order.user_id, ticker))
-
     # Определяем сумму заморозки
     if isinstance(order, MarketOrder):
         amount_to_unfreeze = order.qty * order.rate if is_buy else order.qty
+
     else:
         remaining_qty = order.qty - order.filled
         amount_to_unfreeze = remaining_qty * order.price if is_buy else remaining_qty
@@ -78,17 +76,22 @@ def ensure_balances_exist(db: Session, user_id: UUID, tickers: list[str]):
     if created:
         db.flush()
 
+def block_balances(user_id : UUID, assets : list[str], db : Session):
+    keys = sorted([(user_id, ticker) for ticker in assets])
+    balances = db.execute(
+        select(Balance)
+        .where(tuple_(Balance.user_id, Balance.ticker).in_(keys))
+        .with_for_update()
+    ).scalars().all()
+
+    return balances
+
 def validate_balance(db : Session, order_body : OrderBody, user_id : UUID) -> [Balance, Balance, int]:
     ensure_balances_exist(db, user_id, [order_body.ticker, 'RUB'])
     rate = estimate_market_order_rate(order_body, db) if order_body.price is None else order_body.price
-    stmt = (select(Balance)
-            .where((Balance.user_id == user_id) & (Balance.ticker == order_body.ticker))
-            .with_for_update())
-    base_balance = db.execute(stmt).scalars().first()
-    stmt = (select(Balance)
-            .where((Balance.user_id == user_id) & (Balance.ticker == 'RUB'))
-            .with_for_update())
-    eq_balance = db.execute(stmt).scalars().first()
+    balances = block_balances(user_id, [order_body.ticker, 'RUB'], db)
+    base_balance = next(b for b in balances if b.ticker == order_body.ticker)
+    eq_balance = next(b for b in balances if b.ticker == 'RUB')
     check_balance(order_body.direction,
                   rate,
                   order_body.qty,
