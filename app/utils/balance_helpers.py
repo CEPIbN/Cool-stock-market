@@ -77,10 +77,11 @@ def ensure_balances_exist(db: Session, user_id: UUID, tickers: list[str]):
         db.flush()
 
 def block_balances(user_id : UUID, assets : list[str], db : Session):
-    keys = sorted([(user_id, ticker) for ticker in assets])
+    keys = ([(user_id, ticker) for ticker in assets])
     balances = db.execute(
         select(Balance)
         .where(tuple_(Balance.user_id, Balance.ticker).in_(keys))
+        .order_by(Balance.user_id, Balance.ticker)  # обязательно!
         .with_for_update()
     ).scalars().all()
 
