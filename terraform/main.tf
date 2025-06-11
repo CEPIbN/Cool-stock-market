@@ -69,17 +69,6 @@ resource "yandex_mdb_postgresql_cluster" "pg_cluster" {
     assign_public_ip = true
   }
   
-  host {
-    zone      = "ru-central1-a"
-    subnet_id = yandex_vpc_subnet.subnet-a.id
-    assign_public_ip = true
-  }
-  
-  host {
-    zone      = "ru-central1-b"
-    subnet_id = yandex_vpc_subnet.subnet-b.id
-    assign_public_ip = true
-  }
 }
 
 resource "yandex_mdb_postgresql_user" "admin" {
