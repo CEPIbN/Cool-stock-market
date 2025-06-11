@@ -8,13 +8,16 @@ from app.models.enums.ErrorType import ErrorType
 from app.models.enums.OrderStatus import OrderStatus
 from app.models.models import BaseOrder, MarketOrder, LimitOrder, Transaction, Balance
 from app.utils.order_helpers import util_cancel_order
-from app.utils.balance_helpers import spend_frozen_balance, unfreeze_remain_after_execution
+from app.utils.balance_helpers import spend_frozen_balance, unfreeze_remain_after_execution, block_balances
 
 
 class OrderMatcher:
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, base_balance : Balance, eq_balance : Balance):
         self.db = db
         self.is_buy : bool = False
+        self.base_balance = base_balance
+        self.eq_balance = eq_balance
+
     def match(self, order : BaseOrder):
         self.is_buy = order.direction == Direction.BUY
         if isinstance(order, MarketOrder):
@@ -42,7 +45,8 @@ class OrderMatcher:
         if executed:
             order.status = OrderStatus.EXECUTED
         else:
-            util_cancel_order(order, self.db)
+            order_balance_to_cancel = self.base_balance if order.direction == Direction.SELL else self.eq_balance
+            util_cancel_order(self.db, order, order_balance_to_cancel)
             raise CustomAPIException(loc=["path", "order_id"],
                                      msg=f"Market Order has cancelled",
                                      type_error=ErrorType.ORDER_ID)
@@ -130,33 +134,28 @@ class OrderMatcher:
         return transaction
 
     def _update_balances(self, order : BaseOrder, matched : LimitOrder, transaction : Transaction):
-        user_ids = [order.user_id, matched.user_id]
         assets = [order.ticker, "RUB"]
-        balances = self._load_balances(user_ids, assets)
+        matched_balances = self._load_matched_balances(matched.user_id, assets)
         if self.is_buy:
-            balance_buy = self._transfer("RUB", order, matched,
-                           transaction.amount * transaction.price, balances)
-            self._transfer(order.ticker, matched, order,
-                           transaction.amount, balances)
+            balance_buy = self._transfer(transaction.amount * transaction.price,
+                                         self.eq_balance, matched_balances.get("RUB"))
+            self._transfer(transaction.amount,
+                           matched_balances.get(order.ticker), self.base_balance)
             unfreeze_remain_after_execution(order, balance_buy, transaction)
 
         else:
-            self._transfer(order.ticker, order, matched,
-                           transaction.amount, balances)
-            balance_sell = self._transfer("RUB", matched, order,
-                           transaction.amount * transaction.price, balances)
+            balance_sell = self._transfer(transaction.amount * transaction.price,
+                                          matched_balances.get("RUB"), self.eq_balance)
+            self._transfer(transaction.amount,
+                           self.base_balance, matched_balances.get(order.ticker))
             unfreeze_remain_after_execution(matched, balance_sell, transaction)
 
-    def _transfer(self, asset: str,
-                  order: BaseOrder,
-                  matched: LimitOrder,
-                  amount : int,
-                  balances: dict[tuple[UUID, str], Balance]):
+    def _transfer(self,
+                  amount: int,
+                  from_balance: Balance,
+                  to_balance: Balance):
         if amount <= 0:
             return
-
-        from_balance = balances.get((order.user_id, asset))
-        to_balance = balances.get((matched.user_id, asset))
 
         if from_balance:
             spend_frozen_balance(from_balance, amount)
@@ -166,15 +165,10 @@ class OrderMatcher:
 
         return from_balance
 
-    def _load_balances(self, user_ids: list[UUID], assets: list[str]) -> dict[tuple[UUID, str], Balance]:
+    def _load_matched_balances(self, user_id: UUID, assets: list[str]) -> dict[str, Balance]:
         """
         Загружает балансы с блокировкой SELECT ... FOR UPDATE,
         в предсказуемом порядке (по user_id, asset), чтобы избежать deadlock.
         """
-        keys = sorted((user_id, asset) for user_id in user_ids for asset in assets)
-        balances = self.db.execute(
-            select(Balance)
-            .where(tuple_(Balance.user_id, Balance.ticker).in_(keys))
-            .with_for_update()  # SELECT ... FOR UPDATE
-        ).scalars().all()
-        return {(b.user_id, b.ticker): b for b in balances}
+        balances = block_balances(user_id, assets, self.db)
+        return {b.ticker: b for b in balances}

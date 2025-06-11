@@ -58,7 +58,7 @@ def upgrade() -> None:
                     sa.Column('user_id', sa.UUID(), nullable=False),
                     sa.Column('ticker', sa.String(), nullable=False),
                     sa.Column('amount', sa.Integer(), nullable=False),
-                    sa.Column('timestamp', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+                    sa.Column('timestamp', sa.DateTime(timezone=True), nullable=False),
                     sa.CheckConstraint('amount > 0', name='check_deposit_amount_positive'),
                     sa.ForeignKeyConstraint(['ticker'], ['instruments.ticker'], ),
                     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
@@ -106,7 +106,7 @@ def upgrade() -> None:
                     sa.Column('ticker', sa.String(), nullable=False),
                     sa.Column('amount', sa.Integer(), nullable=False),
                     sa.Column('price', sa.Integer(), nullable=False),
-                    sa.Column('timestamp', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+                    sa.Column('timestamp', sa.DateTime(timezone=True), nullable=False),
 
                     sa.ForeignKeyConstraint(['ticker'], ['instruments.ticker'], ondelete='CASCADE'),
                     sa.PrimaryKeyConstraint('id')

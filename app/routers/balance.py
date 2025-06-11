@@ -28,7 +28,8 @@ def get_balance(current_user: User = Depends(get_current_user),
                 db: Session = Depends(get_db)):
     stmt = select(Balance).where(
         (Balance.user_id == current_user.id) &
-        (Balance.amount > 0)
+        ((Balance.amount > 0) |
+        (Balance.ticker == "RUB"))
     ).with_for_update()
     balances = db.execute(stmt).scalars().all()
     balances_dict = {i.ticker: i.amount for i in balances}

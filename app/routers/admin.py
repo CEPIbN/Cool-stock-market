@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import select, tuple_
 from uuid import UUID
 
 from fastapi import APIRouter
@@ -17,7 +17,7 @@ from app.models.enums.Direction import Direction
 from app.models.enums.ErrorType import ErrorType
 from app.models.enums.OrderStatus import OrderStatus
 from app.models.enums.UserRole import UserRole
-from app.models.models import User, Instrument, LimitOrder
+from app.models.models import User, Instrument, LimitOrder, Balance
 from app.utils.balance_helpers import unfreeze_balance_after_cancel
 from app.utils.order_helpers import util_cancel_order
 
@@ -63,11 +63,33 @@ def delete_instrument(ticker: str = Path(pattern="^[A-Z]{2,10}$"),
                       db: Session = Depends(get_db)):
     is_admin(current_user)
     instrument = validate_ticker(db, ticker)
-    for order in (db.execute(select(LimitOrder).
-                                    filter_by(ticker=ticker, direction=Direction.BUY).with_for_update())
-            .scalars().all()):
+    orders = db.execute(
+        select(LimitOrder)
+        .filter_by(ticker=ticker, direction=Direction.BUY)
+        .with_for_update()
+    ).scalars().all()
+
+    # Собираем нужные пары для блокировки балансов
+    balance_keys = sorted(
+        (order.user_id, order.ticker if order.direction == Direction.SELL else "RUB")
+        for order in orders
+    )
+
+    balances = db.execute(
+        select(Balance)
+        .where(tuple_(Balance.user_id, Balance.ticker).in_(balance_keys))
+        .with_for_update()
+    ).scalars().all()
+
+    # Быстрый доступ
+    balance_map = {(b.user_id, b.ticker): b for b in balances}
+
+    # Отмена ордеров и разморозка
+    for order in orders:
+        key = (order.user_id, order.ticker if order.direction == Direction.SELL else "RUB")
+        balance = balance_map.get(key)
         order.status = OrderStatus.CANCELLED
-        unfreeze_balance_after_cancel(order, db)
+        unfreeze_balance_after_cancel(order, balance, db)
 
     db.delete(instrument)
     db.commit()

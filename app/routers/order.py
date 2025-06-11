@@ -73,7 +73,7 @@ def create_order(order_body : OrderBody,
         .with_for_update()) \
         .scalars().one()
 
-    OrderMatcher(db).match(order)
+    OrderMatcher(db, base_balance, eq_balance).match(order)
     db.commit()
     return CreateOrderResponse(order_id=order.id)
 
@@ -95,7 +95,7 @@ def cancel_order(order_id : UUID = Path(),
         )
         order = db.execute(stmt).scalars().first()
         if isinstance(order, BaseOrder):
-            util_cancel_order(order, db)
+            util_cancel_order(db, order)
             return Ok
 
     if not order:
