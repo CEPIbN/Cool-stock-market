@@ -129,7 +129,7 @@ def estimate_market_order_rate(order_body : OrderBody, db: Session) -> int:
             select(LimitOrder).where(
                 (LimitOrder.ticker == order_body.ticker) &
                 (LimitOrder.direction == answer_direction) &
-                ((LimitOrder.qty - LimitOrder.filled) >= order_body.qty) &
+                #((LimitOrder.qty - LimitOrder.filled) >= order_body.qty) &
                 LimitOrder.status.in_([OrderStatus.NEW, OrderStatus.PARTIALLY_EXECUTED])
             )
             .order_by(LimitOrder.price.asc() if is_buy else LimitOrder.price.desc())
