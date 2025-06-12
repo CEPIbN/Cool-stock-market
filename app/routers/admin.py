@@ -1,4 +1,4 @@
-from sqlalchemy import select, tuple_
+from sqlalchemy import select, tuple_, asc
 from uuid import UUID
 
 from fastapi import APIRouter
@@ -66,7 +66,7 @@ def delete_instrument(ticker: str = Path(pattern="^[A-Z]{2,10}$"),
     orders = db.execute(
         select(LimitOrder)
         .filter_by(ticker=ticker, direction=Direction.BUY)
-        .order_by(LimitOrder.id)
+        .order_by(LimitOrder.id, asc(LimitOrder.price))
         .with_for_update()
     ).scalars().all()
 
