@@ -46,7 +46,7 @@ def get_rate(db : Session, order_body : OrderBody, user_id : UUID):
     ensure_balances_exist(db, user_id, [order_body.ticker, 'RUB'])
     return estimate_market_order_rate(order_body, db) if order_body.price is None else order_body.price
 
-def find_matching_order_ids(db : Session, order: BaseOrder) -> list[LimitOrder]:
+def find_matching_orders(db : Session, order: BaseOrder) -> list[LimitOrder]:
     is_buy = order.direction == Direction.BUY
     ask_direction = Direction.SELL if is_buy else Direction.BUY
     query = db.query(LimitOrder).filter(
@@ -60,9 +60,20 @@ def find_matching_order_ids(db : Session, order: BaseOrder) -> list[LimitOrder]:
         )
         query = query.filter(price_condition)
 
-    query = query.order_by(
-        asc(LimitOrder.price) if is_buy else desc(LimitOrder.price),
-        LimitOrder.timestamp
-    )
+    return query.all()
 
-    return [row.id for row in query.all()]
+def lock_all_matched_orders(order: BaseOrder, matched_orders: list[LimitOrder], is_buy : bool, db : Session) -> list[LimitOrder]:
+    if isinstance(order, MarketOrder):
+        all_ids = [order.id for order in matched_orders]
+    else:
+        all_ids = [order.id for order in matched_orders] + [order.id]
+    lock_matched_orders = db.execute(
+        select(LimitOrder)
+        .where(LimitOrder.id.in_(all_ids))
+        .order_by(
+                  asc(LimitOrder.price) if is_buy else desc(LimitOrder.price),
+                  LimitOrder.timestamp)
+        .with_for_update()
+    ).scalars().all()
+
+    return [o for o in lock_matched_orders if o.id != order.id]

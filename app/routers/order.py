@@ -18,7 +18,8 @@ from app.models.enums.OrderStatus import OrderStatus
 from app.models.models import User, LimitOrder, MarketOrder, BaseOrder, AssetEquivalent
 from app.routers.admin import validate_ticker
 from app.utils.balance_helpers import validate_balance, lock_all_balances, freeze_balance
-from app.utils.order_helpers import util_cancel_order, create_order_entry, get_rate, find_matching_order_ids
+from app.utils.order_helpers import util_cancel_order, create_order_entry, get_rate, \
+    lock_all_matched_orders, find_matching_orders
 
 router = APIRouter(
     prefix="/api/v1/order",
@@ -65,8 +66,8 @@ def create_order(order_body : OrderBody,
     rate = get_rate(db, order_body, current_user.id)
     order, amount_to_freeze_balance, is_buy = create_order_entry(order_body, current_user, rate)
 
-    matched_ids = find_matching_order_ids(db, order)
-    balances_dict = lock_all_balances(order, matched_ids, db)
+    matched_list = find_matching_orders(db, order)
+    balances_dict = lock_all_balances(order, matched_list, db)
     base_balance, eq_balance = validate_balance(rate, order_body, current_user.id, balances_dict)
 
     freeze_balance(eq_balance if is_buy else base_balance, amount_to_freeze_balance)
@@ -74,13 +75,9 @@ def create_order(order_body : OrderBody,
     db.flush()
     db.refresh(order)
 
-    # Блокировка перед матчингом
-    order = db.execute(select(order.__class__) \
-        .filter_by(id=order.id) \
-        .with_for_update()) \
-        .scalars().one()
+    matched_orders = lock_all_matched_orders(order, matched_list, is_buy, db)
 
-    OrderMatcher(db, base_balance, eq_balance, balances_dict).match(order, matched_ids)
+    OrderMatcher(db, base_balance, eq_balance, balances_dict).match(order, matched_orders)
     db.commit()
     return CreateOrderResponse(order_id=order.id)
 
