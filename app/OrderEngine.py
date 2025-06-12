@@ -31,13 +31,6 @@ class OrderMatcher:
 
     def _match_market_order(self, order: MarketOrder,
                             matched_orders : list[LimitOrder]):
-        #total_available = sum(o.qty - o.filled for o in matched_orders)
-        # if total_available < order.qty:
-        #     util_cancel_order(order, self.db)
-        #     raise CustomAPIException(loc=["path", "order_id"],
-        #                              msg=f"Market Order has cancelled",
-        #                              type_error=ErrorType.ORDER_ID)
-
         executed = False
         for matched in matched_orders:
             if order.qty > matched.qty - matched.filled:
@@ -146,7 +139,7 @@ class OrderMatcher:
             return
 
         if from_balance:
-            spend_frozen_balance(from_balance, amount)
+            spend_frozen_balance(self.db, from_balance, amount)
 
         if to_balance:
             to_balance.amount += amount

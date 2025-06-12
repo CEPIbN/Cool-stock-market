@@ -13,6 +13,7 @@ from app.OrderEngine import OrderMatcher
 from app.db import get_db
 from app.exceptions import CustomAPIException
 from app.middlewares import get_current_user
+from app.models.enums.Direction import Direction
 from app.models.enums.ErrorType import ErrorType
 from app.models.enums.OrderStatus import OrderStatus
 from app.models.models import User, LimitOrder, MarketOrder, BaseOrder, AssetEquivalent
@@ -89,17 +90,16 @@ def cancel_order(order_id : UUID = Path(),
         (MarketOrder, get_market_order),
         (LimitOrder, get_limit_order)
     ]:
-        stmt = (
-            select(model)
-                .filter_by(
+        stmt = (select(model).filter_by(
                     user_id=current_user.id, id=order_id
                 )
                 .filter(model.status.in_([OrderStatus.NEW, OrderStatus.PARTIALLY_EXECUTED]))
-                .with_for_update()
-        )
+                .with_for_update())
         order = db.execute(stmt).scalars().first()
         if isinstance(order, BaseOrder):
-            util_cancel_order(db, order)
+            balances_dict = lock_all_balances(order, find_matching_orders(db, order), db)
+            util_cancel_order(db, order,
+                              balances_dict.get((order.user_id, order.ticker if order.direction == Direction.SELL else "RUB")))
             return Ok
 
     if not order:

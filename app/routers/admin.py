@@ -18,7 +18,7 @@ from app.models.enums.ErrorType import ErrorType
 from app.models.enums.OrderStatus import OrderStatus
 from app.models.enums.UserRole import UserRole
 from app.models.models import User, Instrument, LimitOrder, Balance
-from app.utils.balance_helpers import unfreeze_balance_after_cancel
+from app.utils.balance_helpers import unfreeze_balance_after_cancel, map_locked_balances
 from app.utils.order_helpers import util_cancel_order
 
 router = APIRouter(
@@ -75,16 +75,7 @@ def delete_instrument(ticker: str = Path(pattern="^[A-Z]{2,10}$"),
         (order.user_id, order.ticker if order.direction == Direction.SELL else "RUB")
         for order in orders
     )
-
-    balances = db.execute(
-        select(Balance)
-        .where(tuple_(Balance.user_id, Balance.ticker).in_(balance_keys))
-        .order_by(Balance.user_id, Balance.ticker)
-        .with_for_update()
-    ).scalars().all()
-
-    # Быстрый доступ
-    balance_map = {(b.user_id, b.ticker): b for b in balances}
+    balance_map = map_locked_balances(balance_keys, db)
 
     # Отмена ордеров и разморозка
     for order in orders:
