@@ -76,30 +76,29 @@ def ensure_balances_exist(db: Session, user_id: UUID, tickers: list[str]):
     if created:
         db.flush()
 
-def block_balances(user_id : UUID, assets : list[str], db : Session):
-    keys = ([(user_id, ticker) for ticker in assets])
-    balances = db.execute(
-        select(Balance)
-        .where(tuple_(Balance.user_id, Balance.ticker).in_(keys))
-        .order_by(Balance.user_id, Balance.ticker)  # обязательно!
-        .with_for_update()
-    ).scalars().all()
+# def block_balances(user_id : UUID, assets : list[str], db : Session):
+#     keys = ([(user_id, ticker) for ticker in assets])
+#     balances = db.execute(
+#         select(Balance)
+#         .where(tuple_(Balance.user_id, Balance.ticker).in_(keys))
+#         .order_by(Balance.user_id, Balance.ticker)  # обязательно!
+#         .with_for_update()
+#     ).scalars().all()
+#
+#     return balances
 
-    return balances
-
-def validate_balance(db : Session, order_body : OrderBody, user_id : UUID) -> [Balance, Balance, int]:
-    ensure_balances_exist(db, user_id, [order_body.ticker, 'RUB'])
-    rate = estimate_market_order_rate(order_body, db) if order_body.price is None else order_body.price
-    balances = block_balances(user_id, [order_body.ticker, 'RUB'], db)
-    base_balance = next(b for b in balances if b.ticker == order_body.ticker)
-    eq_balance = next(b for b in balances if b.ticker == 'RUB')
+def validate_balance(rate : int,
+                     order_body : OrderBody,
+                     user_id : UUID,
+                     balances : dict[(UUID, str), Balance]) -> [Balance, Balance]:
+    base_balance = balances.get((user_id, order_body.ticker))
+    eq_balance = balances.get((user_id, "RUB"))
     check_balance(order_body.direction,
                   rate,
                   order_body.qty,
                   eq_balance,
                   base_balance)
-
-    return base_balance, eq_balance, rate
+    return base_balance, eq_balance
 
 def check_balance(direction : Direction,
                   rate : int,
@@ -161,3 +160,18 @@ def estimate_market_order_rate(order_body : OrderBody, db: Session) -> int:
         msg=f"Cannot determine price for {order_body.ticker}. No market data.",
         type_error=ErrorType.MARKET_ORDER
     )
+
+def lock_all_balances(order: OrderBody, matched_orders: list[UUID], db : Session) -> dict[(UUID, str), Balance]:
+    user_ids = set([order.user_id] + matched_orders)
+    tickers = ['RUB', order.ticker]  # максимум 2 тикера
+    keys = sorted((user_id, ticker) for user_id in user_ids for ticker in tickers)
+
+    balances = db.execute(
+        select(Balance)
+        .where(tuple_(Balance.user_id, Balance.ticker).in_(keys))
+        .order_by(Balance.user_id, Balance.ticker)
+        .with_for_update()
+    ).scalars().all()
+
+    balances_dict = {(b.user_id, b.ticker): b for b in balances}
+    return balances_dict

@@ -17,8 +17,8 @@ from app.models.enums.ErrorType import ErrorType
 from app.models.enums.OrderStatus import OrderStatus
 from app.models.models import User, LimitOrder, MarketOrder, BaseOrder, AssetEquivalent
 from app.routers.admin import validate_ticker
-from app.utils.balance_helpers import validate_balance
-from app.utils.order_helpers import util_cancel_order, create_order_entry
+from app.utils.balance_helpers import validate_balance, lock_all_balances, freeze_balance
+from app.utils.order_helpers import util_cancel_order, create_order_entry, get_rate, find_matching_order_ids
 
 router = APIRouter(
     prefix="/api/v1/order",
@@ -61,8 +61,15 @@ def create_order(order_body : OrderBody,
                  db: Session = Depends(get_db)):
     validate_ticker(db, order_body.ticker)
     validate_ticker(db, "RUB")
-    base_balance, eq_balance, rate = validate_balance(db, order_body, current_user.id)
-    order = create_order_entry(order_body, current_user, base_balance, eq_balance, rate)
+
+    rate = get_rate(db, order_body, current_user.id)
+    order, amount_to_freeze_balance, is_buy = create_order_entry(order_body, current_user, rate)
+
+    matched_ids = find_matching_order_ids(db, order)
+    balances_dict = lock_all_balances(order, matched_ids, db)
+    base_balance, eq_balance = validate_balance(rate, order_body, current_user.id, balances_dict)
+
+    freeze_balance(eq_balance if is_buy else base_balance, amount_to_freeze_balance)
     db.add(order)
     db.flush()
     db.refresh(order)
@@ -73,7 +80,7 @@ def create_order(order_body : OrderBody,
         .with_for_update()) \
         .scalars().one()
 
-    OrderMatcher(db, base_balance, eq_balance).match(order)
+    OrderMatcher(db, base_balance, eq_balance, balances_dict).match(order, matched_ids)
     db.commit()
     return CreateOrderResponse(order_id=order.id)
 

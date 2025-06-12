@@ -1,4 +1,4 @@
-from sqlalchemy import desc, asc, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from uuid import UUID
 
@@ -8,24 +8,29 @@ from app.models.enums.ErrorType import ErrorType
 from app.models.enums.OrderStatus import OrderStatus
 from app.models.models import BaseOrder, MarketOrder, LimitOrder, Transaction, Balance
 from app.utils.order_helpers import util_cancel_order
-from app.utils.balance_helpers import spend_frozen_balance, unfreeze_remain_after_execution, block_balances
+from app.utils.balance_helpers import spend_frozen_balance, unfreeze_remain_after_execution
 
 
 class OrderMatcher:
-    def __init__(self, db: Session, base_balance : Balance, eq_balance : Balance):
+    def __init__(self, db: Session,
+                 base_balance : Balance,
+                 eq_balance : Balance,
+                 matched_balances : dict[(UUID, str), Balance]):
         self.db = db
         self.is_buy : bool = False
         self.base_balance = base_balance
         self.eq_balance = eq_balance
+        self.matched_balances = matched_balances
 
-    def match(self, order : BaseOrder):
+    def match(self, order : BaseOrder,
+              matched_order_ids : list[UUID]):
         self.is_buy = order.direction == Direction.BUY
         if isinstance(order, MarketOrder):
-            return self._match_market_order(order)
-        return self._match_limit_order(order)
+            return self._match_market_order(order, matched_order_ids)
+        return self._match_limit_order(order, matched_order_ids)
 
-    def _match_market_order(self, order: MarketOrder):
-        matched_order_ids = self._find_matching_order_ids(order)
+    def _match_market_order(self, order: MarketOrder,
+                            matched_order_ids : list[UUID]):
         #total_available = sum(o.qty - o.filled for o in matched_orders)
         # if total_available < order.qty:
         #     util_cancel_order(order, self.db)
@@ -51,12 +56,12 @@ class OrderMatcher:
                                      msg=f"Market Order has cancelled",
                                      type_error=ErrorType.ORDER_ID)
 
-    def _match_limit_order(self, order: LimitOrder):
+    def _match_limit_order(self, order: LimitOrder,
+                           matched_order_ids : list[UUID]):
         def calculate_trade_volume(limit_order: LimitOrder, loc_matched: LimitOrder):
             return min(limit_order.qty - limit_order.filled, loc_matched.qty - loc_matched.filled)
 
         executed = False
-        matched_order_ids = self._find_matching_order_ids(order)
         for matched_id in matched_order_ids:
             matched = self._lock_order_by_id(matched_id)
             matched_qty = calculate_trade_volume(order, matched)
@@ -67,25 +72,6 @@ class OrderMatcher:
 
         self._finalize_limit_order_status(order, executed)
 
-    def _find_matching_order_ids(self, order: BaseOrder) -> list[LimitOrder]:
-        ask_direction = Direction.SELL if self.is_buy else Direction.BUY
-        query = self.db.query(LimitOrder).filter(
-            LimitOrder.ticker == order.ticker,
-            LimitOrder.direction == ask_direction,
-            LimitOrder.status.in_([OrderStatus.NEW, OrderStatus.PARTIALLY_EXECUTED])
-        )
-        if isinstance(order, LimitOrder):
-            price_condition = (
-                LimitOrder.price <= order.price if self.is_buy else LimitOrder.price >= order.price
-            )
-            query = query.filter(price_condition)
-
-        query = query.order_by(
-            asc(LimitOrder.price) if self.is_buy else desc(LimitOrder.price),
-            LimitOrder.timestamp
-        )
-        return [row.id for row in query.all()]
-
     def _lock_order_by_id(self, order_id: UUID) -> LimitOrder:
         stmt = (
             select(LimitOrder)
@@ -94,7 +80,9 @@ class OrderMatcher:
         )
         return self.db.execute(stmt).scalars().first()
 
-    def _apply_trade(self, order: BaseOrder, matched: LimitOrder, matched_qty: int):
+    def _apply_trade(self, order: BaseOrder,
+                     matched: LimitOrder,
+                     matched_qty: int):
         self._change_status_match_order(matched, matched_qty)
 
         if hasattr(order, 'filled'):
@@ -133,21 +121,23 @@ class OrderMatcher:
         self.db.add(transaction)
         return transaction
 
-    def _update_balances(self, order : BaseOrder, matched : LimitOrder, transaction : Transaction):
-        assets = [order.ticker, "RUB"]
-        matched_balances = self._load_matched_balances(matched.user_id, assets)
+    def _update_balances(self, order : BaseOrder,
+                         matched : LimitOrder,
+                         transaction : Transaction):
+        matched_eq_balance = self.matched_balances.get((matched.user_id, "RUB"))
+        matched_base_balance = self.matched_balances.get((matched.user_id, order.ticker))
         if self.is_buy:
             balance_buy = self._transfer(transaction.amount * transaction.price,
-                                         self.eq_balance, matched_balances.get("RUB"))
+                                         self.eq_balance, matched_eq_balance)
             self._transfer(transaction.amount,
-                           matched_balances.get(order.ticker), self.base_balance)
+                           matched_base_balance, self.base_balance)
             unfreeze_remain_after_execution(order, balance_buy, transaction)
 
         else:
             balance_sell = self._transfer(transaction.amount * transaction.price,
-                                          matched_balances.get("RUB"), self.eq_balance)
+                                          matched_eq_balance, self.eq_balance)
             self._transfer(transaction.amount,
-                           self.base_balance, matched_balances.get(order.ticker))
+                           self.base_balance, matched_base_balance)
             unfreeze_remain_after_execution(matched, balance_sell, transaction)
 
     def _transfer(self,
@@ -164,11 +154,3 @@ class OrderMatcher:
             to_balance.amount += amount
 
         return from_balance
-
-    def _load_matched_balances(self, user_id: UUID, assets: list[str]) -> dict[str, Balance]:
-        """
-        Загружает балансы с блокировкой SELECT ... FOR UPDATE,
-        в предсказуемом порядке (по user_id, asset), чтобы избежать deadlock.
-        """
-        balances = block_balances(user_id, assets, self.db)
-        return {b.ticker: b for b in balances}
