@@ -23,14 +23,14 @@ class OrderMatcher:
         self.matched_balances = matched_balances
 
     def match(self, order : BaseOrder,
-              matched_order_ids : list[UUID]):
+              matched_orders : list[LimitOrder]):
         self.is_buy = order.direction == Direction.BUY
         if isinstance(order, MarketOrder):
-            return self._match_market_order(order, matched_order_ids)
-        return self._match_limit_order(order, matched_order_ids)
+            return self._match_market_order(order, matched_orders)
+        return self._match_limit_order(order, matched_orders)
 
     def _match_market_order(self, order: MarketOrder,
-                            matched_order_ids : list[UUID]):
+                            matched_orders : list[LimitOrder]):
         #total_available = sum(o.qty - o.filled for o in matched_orders)
         # if total_available < order.qty:
         #     util_cancel_order(order, self.db)
@@ -39,8 +39,7 @@ class OrderMatcher:
         #                              type_error=ErrorType.ORDER_ID)
 
         executed = False
-        for matched_id in matched_order_ids:
-            matched = self._lock_order_by_id(matched_id)
+        for matched in matched_orders:
             if order.qty > matched.qty - matched.filled:
                 continue
             self._apply_trade(order, matched, order.qty)
@@ -57,13 +56,12 @@ class OrderMatcher:
                                      type_error=ErrorType.ORDER_ID)
 
     def _match_limit_order(self, order: LimitOrder,
-                           matched_order_ids : list[UUID]):
+                           matched_orders : list[LimitOrder]):
         def calculate_trade_volume(limit_order: LimitOrder, loc_matched: LimitOrder):
             return min(limit_order.qty - limit_order.filled, loc_matched.qty - loc_matched.filled)
 
         executed = False
-        for matched_id in matched_order_ids:
-            matched = self._lock_order_by_id(matched_id)
+        for matched in matched_orders:
             matched_qty = calculate_trade_volume(order, matched)
             self._apply_trade(order, matched, matched_qty)
             if self._is_executed_order(order, matched_qty):

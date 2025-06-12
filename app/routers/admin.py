@@ -66,7 +66,7 @@ def delete_instrument(ticker: str = Path(pattern="^[A-Z]{2,10}$"),
     orders = db.execute(
         select(LimitOrder)
         .filter_by(ticker=ticker, direction=Direction.BUY)
-        .order_by(LimitOrder.id, asc(LimitOrder.price))
+        .order_by(asc(LimitOrder.price), LimitOrder.timestamp)
         .with_for_update()
     ).scalars().all()
 

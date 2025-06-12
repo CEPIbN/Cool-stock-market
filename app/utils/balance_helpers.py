@@ -129,7 +129,6 @@ def estimate_market_order_rate(order_body : OrderBody, db: Session) -> int:
             select(LimitOrder).where(
                 (LimitOrder.ticker == order_body.ticker) &
                 (LimitOrder.direction == answer_direction) &
-                #((LimitOrder.qty - LimitOrder.filled) >= order_body.qty) &
                 LimitOrder.status.in_([OrderStatus.NEW, OrderStatus.PARTIALLY_EXECUTED])
             )
             .order_by(LimitOrder.price.asc() if is_buy else LimitOrder.price.desc())
@@ -161,8 +160,8 @@ def estimate_market_order_rate(order_body : OrderBody, db: Session) -> int:
         type_error=ErrorType.MARKET_ORDER
     )
 
-def lock_all_balances(order: OrderBody, matched_orders: list[UUID], db : Session) -> dict[(UUID, str), Balance]:
-    user_ids = set([order.user_id] + matched_orders)
+def lock_all_balances(order: OrderBody, matched_orders: list[LimitOrder], db : Session) -> dict[(UUID, str), Balance]:
+    user_ids = set([order.user_id] + [order.user_id for order in matched_orders])
     tickers = ['RUB', order.ticker]  # максимум 2 тикера
     keys = sorted((user_id, ticker) for user_id in user_ids for ticker in tickers)
 
