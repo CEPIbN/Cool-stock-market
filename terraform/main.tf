@@ -145,7 +145,7 @@ resource "yandex_compute_instance_group" "market_group" {
   }
 
   deploy_policy {
-    max_unavailable = 3
+    max_unavailable = 2
     max_expansion   = 3
     max_creating    = 3
     max_deleting    = 3
