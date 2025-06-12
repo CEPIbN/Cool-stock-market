@@ -135,18 +135,23 @@ resource "yandex_compute_instance_group" "market_group" {
   }
 
   scale_policy {
-    fixed_scale {
-      size = 3
+    auto_scale {
+      initial_size           = 2
+      measurement_duration   = 60
+      cpu_utilization_target = 75
+      min_zone_size          = 2
+      max_size               = 3
+      warmup_duration        = 60
+      stabilization_duration = 120
     }
   }
 
   allocation_policy {
-    zones = ["ru-central1-a", "ru-central1-b", "ru-central1-d"]
+    zones = ["ru-central1-a"]
   }
-
   deploy_policy {
-    max_unavailable = 2
-    max_expansion   = 3
+    max_unavailable = 1
+    max_expansion   = 0
     max_creating    = 3
     max_deleting    = 3
   }
@@ -160,16 +165,6 @@ resource "yandex_alb_target_group" "alb_target_group" {
   target {
     subnet_id  = yandex_vpc_subnet.subnet-a.id
     ip_address = yandex_compute_instance_group.market_group.instances[0].network_interface[0].ip_address
-  }
-
-  target {
-    subnet_id  = yandex_vpc_subnet.subnet-b.id
-    ip_address = yandex_compute_instance_group.market_group.instances[1].network_interface[0].ip_address
-  }
-
-  target {
-    subnet_id  = yandex_vpc_subnet.subnet-d.id
-    ip_address = yandex_compute_instance_group.market_group.instances[2].network_interface[0].ip_address
   }
 }
 
@@ -223,14 +218,6 @@ resource "yandex_alb_load_balancer" "alb" {
     location {
       zone_id   = "ru-central1-a"
       subnet_id = yandex_vpc_subnet.subnet-a.id
-    }
-    location {
-      zone_id   = "ru-central1-b"
-      subnet_id = yandex_vpc_subnet.subnet-b.id
-    }
-    location {
-      zone_id   = "ru-central1-d"
-      subnet_id = yandex_vpc_subnet.subnet-d.id
     }
   }
 
