@@ -1,3 +1,6 @@
+from datetime import time
+
+from psycopg2 import OperationalError
 from sqlalchemy import select, asc, desc
 from sqlalchemy.orm import Session
 from uuid import UUID
@@ -9,14 +12,8 @@ from app.models.models import BaseOrder, User, Balance, LimitOrder, MarketOrder
 from app.utils.balance_helpers import unfreeze_balance_after_cancel, ensure_balances_exist, estimate_market_order_rate
 
 
-def util_cancel_order(db : Session, order : BaseOrder, balance : Balance = None):
+def util_cancel_order(db : Session, order : BaseOrder, balance):
     order.status = OrderStatus.CANCELLED
-    if balance is None:
-        balance_stmt = select(Balance).where(
-            (Balance.user_id == order.user_id) &
-            (Balance.ticker == order.ticker if order.direction == Direction.SELL else Balance.ticker == "RUB")
-        ).with_for_update()
-        balance = db.execute(balance_stmt).scalars().first()
     unfreeze_balance_after_cancel(order, balance, db)
     db.commit()
 
@@ -31,10 +28,8 @@ def create_order_entry(order_body : OrderBody,
     # Заморозка средств
     if is_buy:
         freeze_balance = order_body.qty * rate
-        #freeze_balance(eq_balance, order_body.qty * rate)
     else:
         freeze_balance = order_body.qty
-        #freeze_balance(base_balance, order_body.qty)
 
     # Создание ордера
     order_class = MarketOrder if is_market else LimitOrder

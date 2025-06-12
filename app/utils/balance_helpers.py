@@ -22,8 +22,9 @@ def freeze_balance(balance: Balance, qty: int):
     balance.frozen_amount += qty
 
 
-def unfreeze_balance(balance: Balance, qty: int):
+def unfreeze_balance(db : Session, balance: Balance, qty: int):
     if qty > balance.frozen_amount:
+        db.rollback()
         raise CustomAPIException(loc=["balance", "amount"],
                                  msg=f"Not enough frozen balance",
                                  type_error=ErrorType.NOT_ENOUGH_FOR_WITHDRAW)
@@ -39,10 +40,11 @@ def unfreeze_balance_after_cancel(order : BaseOrder, balance : BaseOrder, db : S
         remaining_qty = order.qty - order.filled
         amount_to_unfreeze = remaining_qty * order.price if is_buy else remaining_qty
 
-    unfreeze_balance(balance, amount_to_unfreeze)
+    unfreeze_balance(db, balance, amount_to_unfreeze)
 
-def spend_frozen_balance(balance: Balance, qty : int):
+def spend_frozen_balance(db : Session, balance: Balance, qty : int):
     if qty > balance.frozen_amount:
+        db.rollback()
         raise CustomAPIException(loc=["balance", "amount"],
                                  msg=f"Not enough balance for execute order",
                                  type_error=ErrorType.NOT_ENOUGH_FOR_WITHDRAW)
@@ -76,17 +78,6 @@ def ensure_balances_exist(db: Session, user_id: UUID, tickers: list[str]):
     if created:
         db.flush()
 
-# def block_balances(user_id : UUID, assets : list[str], db : Session):
-#     keys = ([(user_id, ticker) for ticker in assets])
-#     balances = db.execute(
-#         select(Balance)
-#         .where(tuple_(Balance.user_id, Balance.ticker).in_(keys))
-#         .order_by(Balance.user_id, Balance.ticker)  # обязательно!
-#         .with_for_update()
-#     ).scalars().all()
-#
-#     return balances
-
 def validate_balance(rate : int,
                      order_body : OrderBody,
                      user_id : UUID,
@@ -118,10 +109,6 @@ def check_balance(direction : Direction,
                                      type_error=ErrorType.NOT_ENOUGH_FOR_WITHDRAW)
 
 def estimate_market_order_rate(order_body : OrderBody, db: Session) -> int:
-    """
-    Оценка курса для замораживания средств при рыночном ордере.
-    Direction - покупка или продажа, чтобы понимать какую сторону стакана анализировать.
-    """
     is_buy = order_body.direction == Direction.BUY
     answer_direction = Direction.SELL if is_buy else Direction.BUY
     best_match = (
@@ -165,6 +152,9 @@ def lock_all_balances(order: OrderBody, matched_orders: list[LimitOrder], db : S
     tickers = ['RUB', order.ticker]  # максимум 2 тикера
     keys = sorted((user_id, ticker) for user_id in user_ids for ticker in tickers)
 
+    return map_locked_balances(keys, db)
+
+def map_locked_balances(keys : list[(UUID, str)], db : Session):
     balances = db.execute(
         select(Balance)
         .where(tuple_(Balance.user_id, Balance.ticker).in_(keys))
