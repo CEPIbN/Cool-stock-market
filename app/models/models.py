@@ -3,7 +3,7 @@ from datetime import datetime
 import uuid
 from sqlalchemy import (
     Column, Integer, String, ForeignKey, CheckConstraint,
-    DateTime, func, UniqueConstraint, Enum, UUID
+    DateTime, func, UniqueConstraint, Enum, UUID, Index
 )
 
 from sqlalchemy.orm import relationship
@@ -71,7 +71,8 @@ class Transaction(Base):
 class Balance(Base):
     __tablename__ = "balances"
     __table_args__ = (UniqueConstraint('user_id', 'ticker', name='uq_user_ticker'),
-                      CheckConstraint('frozen_amount <= amount', name='check_frozen_le_amount'),)
+                      CheckConstraint('frozen_amount <= amount', name='check_frozen_le_amount'),
+                      Index('ix_balances_user_id_ticker', 'user_id', 'ticker'),)
 
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     ticker = Column(String, ForeignKey("instruments.ticker", ondelete="CASCADE"), primary_key=True)
