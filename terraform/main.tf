@@ -206,7 +206,7 @@ resource "yandex_alb_virtual_host" "vhost" {
 
 resource "yandex_alb_load_balancer" "alb" {
   name       = "market-alb"
-  network_id = "enpi34v6kevu80k390ns"
+  network_id = local.vpc_id
 
   allocation_policy {
     location {
