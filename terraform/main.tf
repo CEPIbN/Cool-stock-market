@@ -129,9 +129,15 @@ resource "yandex_compute_instance_group" "market_group" {
   }
 
   scale_policy {
-    fixed_scale {
-      size = 1
-     }
+    auto_scale {
+      initial_size           = 1
+      measurement_duration   = 60
+      cpu_utilization_target = 50
+      min_zone_size          = 1
+      max_size               = 2
+      warmup_duration        = 60
+      stabilization_duration = 120
+    }
   }
 
   allocation_policy {
