@@ -1,6 +1,3 @@
-from datetime import time
-
-from psycopg2 import OperationalError
 from sqlalchemy import select, asc, desc
 from sqlalchemy.orm import Session
 from uuid import UUID
@@ -9,13 +6,12 @@ from app.DTO.Request.CreateOrderBody import OrderBody
 from app.models.enums.Direction import Direction
 from app.models.enums.OrderStatus import OrderStatus
 from app.models.models import BaseOrder, User, Balance, LimitOrder, MarketOrder
-from app.utils.balance_helpers import unfreeze_balance_after_cancel, ensure_balances_exist, estimate_market_order_rate
+from app.utils.balance_helpers import ensure_balances_exist, estimate_market_order_rate, agg_unfreeze_after_cancel_order
 
 
-def util_cancel_order(db : Session, order : BaseOrder, balance):
+def util_cancel_order(db : Session, order : BaseOrder, balance : Balance, is_buy : bool = True):
     order.status = OrderStatus.CANCELLED
-    unfreeze_balance_after_cancel(order, balance, db)
-    db.commit()
+    agg_unfreeze_after_cancel_order(db, order, balance, is_buy)
 
 def create_order_entry(order_body : OrderBody,
                        current_user : User,
@@ -72,3 +68,16 @@ def lock_all_matched_orders(order: BaseOrder, matched_orders: list[LimitOrder], 
     ).scalars().all()
 
     return [o for o in lock_matched_orders if o.id != order.id]
+
+def lock_all_orders_by_ticker(ticker : str, direction : Direction, db : Session) -> list[LimitOrder]:
+    is_buy = direction == Direction.BUY
+    s = db.execute(
+        select(LimitOrder)
+        .where((LimitOrder.direction == direction ) & (LimitOrder.ticker == ticker) &
+               LimitOrder.status.in_([OrderStatus.NEW, OrderStatus.PARTIALLY_EXECUTED]))
+        .order_by(asc(LimitOrder.price) if is_buy else desc(LimitOrder.price),
+                  LimitOrder.timestamp)
+        .with_for_update()
+    ).scalars().all()
+
+    return [o for o in s]

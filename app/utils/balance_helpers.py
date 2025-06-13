@@ -30,15 +30,20 @@ def unfreeze_balance(db : Session, balance: Balance, qty: int):
                                  type_error=ErrorType.NOT_ENOUGH_FOR_WITHDRAW)
     balance.frozen_amount -= qty
 
-def unfreeze_balance_after_cancel(order : BaseOrder, balance : BaseOrder, db : Session):
-    is_buy = order.direction == Direction.BUY
+def calculate_amount_to_unfreeze_for_market(order : MarketOrder, is_buy : bool):
+    return order.qty * order.rate if is_buy else order.qty
+
+def calculate_amount_to_unfreeze_for_limit(order : LimitOrder, is_buy : bool):
     # Определяем сумму заморозки
-    if isinstance(order, MarketOrder):
-        amount_to_unfreeze = order.qty * order.rate if is_buy else order.qty
+    remaining_qty = order.qty - order.filled
+    return remaining_qty * order.price if is_buy else remaining_qty
+
+def agg_unfreeze_after_cancel_order(db: Session, order: BaseOrder, balance: Balance, is_buy: bool):
+    if isinstance(order, LimitOrder):
+        amount_to_unfreeze = calculate_amount_to_unfreeze_for_limit(order, is_buy)
 
     else:
-        remaining_qty = order.qty - order.filled
-        amount_to_unfreeze = remaining_qty * order.price if is_buy else remaining_qty
+        amount_to_unfreeze = calculate_amount_to_unfreeze_for_market(order, is_buy)
 
     unfreeze_balance(db, balance, amount_to_unfreeze)
 
