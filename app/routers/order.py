@@ -18,9 +18,10 @@ from app.models.enums.ErrorType import ErrorType
 from app.models.enums.OrderStatus import OrderStatus
 from app.models.models import User, LimitOrder, MarketOrder, BaseOrder, AssetEquivalent
 from app.routers.admin import validate_ticker
-from app.utils.balance_helpers import validate_balance, lock_all_balances, freeze_balance
-from app.utils.order_helpers import util_cancel_order, create_order_entry, get_rate, \
-    lock_all_matched_orders, find_matching_orders
+from app.utils.balance_helpers import validate_balance, lock_all_balances, freeze_balance, estimate_market_order_rate, \
+    ensure_balances_exist
+from app.utils.order_helpers import util_cancel_order, create_order_entry, \
+    get_locked_and_sorted_all_matched_orders, find_matching_orders
 
 router = APIRouter(
     prefix="/api/v1/order",
@@ -64,20 +65,24 @@ def create_order(order_body : OrderBody,
     validate_ticker(db, order_body.ticker)
     validate_ticker(db, "RUB")
 
-    rate = get_rate(db, order_body, current_user.id)
+    # Получение цены актива и создание балансов(если нет)
+    rate = estimate_market_order_rate(order_body, db) if order_body.price is None else order_body.price
+    ensure_balances_exist(db, current_user.id, [order_body.ticker, "RUB"])
+    # Создание ордера
     order, amount_to_freeze_balance, is_buy = create_order_entry(order_body, current_user, rate)
-
+    # Блокировка и валидация балансов
     matched_list = find_matching_orders(db, order)
     balances_dict = lock_all_balances(order, matched_list, db)
     base_balance, eq_balance = validate_balance(rate, order_body, current_user.id, balances_dict)
-
+    # Заморозка средств на балансе
     freeze_balance(eq_balance if is_buy else base_balance, amount_to_freeze_balance)
+    # Сохранение ордера в бд
     db.add(order)
     db.flush()
     db.refresh(order)
-
-    matched_orders = lock_all_matched_orders(order, matched_list, is_buy, db)
-
+    # Блокировка текущего и встречных ордеров
+    matched_orders = get_locked_and_sorted_all_matched_orders(order, matched_list, is_buy, db)
+    # Исполнение ордера со встречными
     OrderMatcher(db, base_balance, eq_balance, balances_dict).match(order, matched_orders)
     db.commit()
     return CreateOrderResponse(order_id=order.id)

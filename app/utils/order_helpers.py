@@ -39,10 +39,10 @@ def get_rate(db : Session, order_body : OrderBody, user_id : UUID):
 
 def find_matching_orders(db : Session, order: BaseOrder) -> list[LimitOrder]:
     is_buy = order.direction == Direction.BUY
-    ask_direction = Direction.SELL if is_buy else Direction.BUY
+    answer_direction = Direction.SELL if is_buy else Direction.BUY
     query = db.query(LimitOrder).filter(
         LimitOrder.ticker == order.ticker,
-        LimitOrder.direction == ask_direction,
+        LimitOrder.direction == answer_direction,
         LimitOrder.status.in_([OrderStatus.NEW, OrderStatus.PARTIALLY_EXECUTED])
     )
     if isinstance(order, LimitOrder):
@@ -53,11 +53,11 @@ def find_matching_orders(db : Session, order: BaseOrder) -> list[LimitOrder]:
 
     return query.all()
 
-def lock_all_matched_orders(order: BaseOrder, matched_orders: list[LimitOrder], is_buy : bool, db : Session) -> list[LimitOrder]:
+def get_locked_and_sorted_all_matched_orders(order: BaseOrder, matched_orders: list[LimitOrder], is_buy : bool, db : Session) -> list[LimitOrder]:
     if isinstance(order, MarketOrder):
-        all_ids = [order.id for order in matched_orders]
+        all_ids = [matched_order.id for matched_order in matched_orders]
     else:
-        all_ids = [order.id for order in matched_orders] + [order.id]
+        all_ids = [matched_order.id for matched_order in matched_orders] + [order.id]
     lock_matched_orders = db.execute(
         select(LimitOrder)
         .where(LimitOrder.id.in_(all_ids))
