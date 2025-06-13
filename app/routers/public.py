@@ -1,4 +1,4 @@
-from sqlalchemy import func, select
+from sqlalchemy import func, select, desc
 from uuid import uuid4
 
 from fastapi import APIRouter
