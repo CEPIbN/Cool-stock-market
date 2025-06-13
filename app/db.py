@@ -25,6 +25,9 @@ def get_db():
     db = SessionLocal()
     try:
         yield db
-    finally:
         db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
         db.close()

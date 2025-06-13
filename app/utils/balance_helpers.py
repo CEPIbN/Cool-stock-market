@@ -24,7 +24,7 @@ def freeze_balance(balance: Balance, qty: int):
 
 def unfreeze_balance(db : Session, balance: Balance, qty: int):
     if qty > balance.frozen_amount:
-        #db.rollback()
+        db.commit()
         raise CustomAPIException(loc=["balance", "amount"],
                                  msg=f"Not enough frozen balance",
                                  type_error=ErrorType.NOT_ENOUGH_FOR_WITHDRAW)
@@ -49,7 +49,7 @@ def agg_unfreeze_after_cancel_order(db: Session, order: BaseOrder, balance: Bala
 
 def spend_frozen_balance(db : Session, balance: Balance, qty : int):
     if qty > balance.frozen_amount:
-        #db.rollback()
+        db.commit()
         raise CustomAPIException(loc=["balance", "amount"],
                                  msg=f"Not enough balance for execute order",
                                  type_error=ErrorType.NOT_ENOUGH_FOR_WITHDRAW)

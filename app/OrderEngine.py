@@ -41,7 +41,6 @@ class OrderMatcher:
         if executed:
             order.status = OrderStatus.EXECUTED
         else:
-            self.db.rollback()
             raise CustomAPIException(loc=["path", "order_id"],
                                      msg=f"Market Order has cancelled",
                                      type_error=ErrorType.ORDER_ID)
