@@ -1,6 +1,3 @@
-from typing import Optional
-
-from fastapi.params import Header
 from fastapi import Depends, Request
 from sqlalchemy.orm import Session
 

@@ -15,7 +15,6 @@ from app.DTO.Request.NewUser import NewUser
 from app.DTO.Response.ResponseUser import ResponseUser
 
 from app.models.enums.UserRole import UserRole
-from fastapi.responses import Response
 from app.db import get_db
 from sqlalchemy.orm import Session
 
@@ -37,7 +36,6 @@ def register_user(data: NewUser,
                 api_key=f"key-{new_uuid}")
     db.add(user)
     db.add(Balance(user_id=new_uuid, ticker="RUB"))
-    db.commit()
     return user
 
 @router.get("/instrument",  response_model=list[InstrumentSchema])

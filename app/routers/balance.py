@@ -53,7 +53,6 @@ def deposit_balance(deposit_data: DepositRequest,
         db.add(balance)
 
     balance.amount += deposit_data.amount
-    db.commit()
     return Ok
 
 @router_admin_balance.post("/withdraw", response_model=Ok)
@@ -66,8 +65,7 @@ def withdraw(withdraw_data: WithdrawRequest,
 
     stmt = select(Balance).where(
         (Balance.user_id == user.id) &
-        (Balance.ticker == instrument.ticker)
-    ).with_for_update()
+        (Balance.ticker == instrument.ticker)).with_for_update()
     balance = db.execute(stmt).scalars().first()
     if not balance or (balance.amount-balance.frozen_amount) < withdraw_data.amount:
         raise CustomAPIException(loc=["body", "amount"],
@@ -75,5 +73,4 @@ def withdraw(withdraw_data: WithdrawRequest,
                                  type_error=ErrorType.NOT_ENOUGH_FOR_WITHDRAW)
 
     balance.amount -= withdraw_data.amount
-    db.commit()
     return Ok
