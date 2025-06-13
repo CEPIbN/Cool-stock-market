@@ -86,21 +86,19 @@ def create_order(order_body : OrderBody,
 def cancel_order(order_id : UUID = Path(),
                  current_user: User = Depends(get_current_user),
                  db: Session = Depends(get_db)):
-    for model, to_response in [
-        (MarketOrder, get_market_order),
-        (LimitOrder, get_limit_order)
-    ]:
-        stmt = (select(model).filter_by(
-                    user_id=current_user.id, id=order_id
-                )
-                .filter(model.status.in_([OrderStatus.NEW, OrderStatus.PARTIALLY_EXECUTED]))
-                .with_for_update())
-        order = db.execute(stmt).scalars().first()
-        if isinstance(order, BaseOrder):
-            balances_dict = lock_all_balances(order, find_matching_orders(db, order), db)
-            util_cancel_order(db, order,
-                              balances_dict.get((order.user_id, order.ticker if order.direction == Direction.SELL else "RUB")))
-            return Ok
+    stmt = (select(LimitOrder).filter_by(
+        user_id=current_user.id, id=order_id
+    ).filter(LimitOrder.status.in_([OrderStatus.NEW, OrderStatus.PARTIALLY_EXECUTED]))
+            .with_for_update())
+    order = db.execute(stmt).scalars().first()
+    if isinstance(order, BaseOrder):
+        is_buy = order.direction == Direction.BUY
+        balances_dict = lock_all_balances(order, find_matching_orders(db, order), db)
+        util_cancel_order(db, order,
+                          balances_dict.get(
+                              (order.user_id, "RUB" if is_buy else order.ticker)), is_buy)
+        db.commit()
+        return Ok
 
     if not order:
         raise CustomAPIException(loc=["path", "order_id"],

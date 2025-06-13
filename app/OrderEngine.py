@@ -42,8 +42,9 @@ class OrderMatcher:
         if executed:
             order.status = OrderStatus.EXECUTED
         else:
-            order_balance_to_cancel = self.base_balance if order.direction == Direction.SELL else self.eq_balance
-            util_cancel_order(self.db, order, order_balance_to_cancel)
+            order_balance_to_cancel = self.eq_balance if self.is_buy else self.base_balance
+            util_cancel_order(self.db, order, order_balance_to_cancel, self.is_buy)
+            self.db.commit()
             raise CustomAPIException(loc=["path", "order_id"],
                                      msg=f"Market Order has cancelled",
                                      type_error=ErrorType.ORDER_ID)

@@ -1,4 +1,3 @@
-from sqlalchemy import select, tuple_, asc
 from uuid import UUID
 
 from fastapi import APIRouter
@@ -15,11 +14,10 @@ from app.exceptions import CustomAPIException
 from app.middlewares import get_current_user
 from app.models.enums.Direction import Direction
 from app.models.enums.ErrorType import ErrorType
-from app.models.enums.OrderStatus import OrderStatus
 from app.models.enums.UserRole import UserRole
-from app.models.models import User, Instrument, LimitOrder, Balance
-from app.utils.balance_helpers import unfreeze_balance_after_cancel, map_locked_balances
-from app.utils.order_helpers import util_cancel_order
+from app.models.models import User, Instrument
+from app.utils.balance_helpers import map_locked_balances
+from app.utils.order_helpers import util_cancel_order, lock_all_orders_by_ticker
 
 router = APIRouter(
     prefix="/api/v1/admin",
@@ -63,26 +61,17 @@ def delete_instrument(ticker: str = Path(pattern="^[A-Z]{2,10}$"),
                       db: Session = Depends(get_db)):
     is_admin(current_user)
     instrument = validate_ticker(db, ticker)
-    orders = db.execute(
-        select(LimitOrder)
-        .filter_by(ticker=ticker, direction=Direction.BUY)
-        .order_by(asc(LimitOrder.price), LimitOrder.timestamp)
-        .with_for_update()
-    ).scalars().all()
-
-    # Собираем нужные пары для блокировки балансов
-    balance_keys = sorted(
-        (order.user_id, order.ticker if order.direction == Direction.SELL else "RUB")
-        for order in orders
-    )
-    balance_map = map_locked_balances(balance_keys, db)
-
-    # Отмена ордеров и разморозка
-    for order in orders:
-        key = (order.user_id, order.ticker if order.direction == Direction.SELL else "RUB")
-        balance = balance_map.get(key)
-        order.status = OrderStatus.CANCELLED
-        unfreeze_balance_after_cancel(order, balance, db)
+    # is_buy = True
+    # buy_orders = lock_all_orders_by_ticker(ticker, Direction.BUY, db)
+    # # Собираем нужные пары для блокировки балансов
+    # buy_balance_keys = {(buy_order.user_id, "RUB") for buy_order in buy_orders}
+    # buy_balance_map = map_locked_balances(sorted(buy_balance_keys), db)
+    #
+    # # Отмена ордеров и разморозка
+    # for order in buy_orders:
+    #     key = (order.user_id, "RUB")
+    #     balance = buy_balance_map.get(key)
+    #     util_cancel_order(db, order, balance, is_buy)
 
     db.delete(instrument)
     db.commit()
