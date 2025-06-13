@@ -73,15 +73,14 @@ def unfreeze_remain_after_execution(order: BaseOrder,
     balance.frozen_amount = max(balance.frozen_amount - to_unfreeze, 0)
 
 def ensure_balances_exist(db: Session, user_id: UUID, tickers: list[str]):
-    created = False
     for ticker in tickers:
         balance = db.get(Balance, (user_id, ticker))
         if not balance:
-            db.add(Balance(user_id=user_id, ticker=ticker))
-            created = True
+            balance = Balance(user_id=user_id, ticker=ticker)
+            db.add(balance)
+            db.flush()
+            db.refresh(balance)
 
-    if created:
-        db.flush()
 
 def validate_balance(rate : int,
                      order_body : OrderBody,
@@ -152,10 +151,10 @@ def estimate_market_order_rate(order_body : OrderBody, db: Session) -> int:
         type_error=ErrorType.MARKET_ORDER
     )
 
-def lock_all_balances(order: OrderBody, matched_orders: list[LimitOrder], db : Session) -> dict[(UUID, str), Balance]:
-    user_ids = set([order.user_id] + [order.user_id for order in matched_orders])
+def lock_all_balances(order: BaseOrder, matched_orders: list[LimitOrder], db : Session) -> dict[(UUID, str), Balance]:
+    user_ids = {order.user_id} | {matched_order.user_id for matched_order in matched_orders}
     tickers = ['RUB', order.ticker]  # максимум 2 тикера
-    keys = sorted((user_id, ticker) for user_id in user_ids for ticker in tickers)
+    keys = [(user_id, ticker) for user_id in user_ids for ticker in tickers]
 
     return map_locked_balances(keys, db)
 
