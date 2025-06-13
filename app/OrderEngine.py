@@ -7,7 +7,6 @@ from app.models.enums.Direction import Direction
 from app.models.enums.ErrorType import ErrorType
 from app.models.enums.OrderStatus import OrderStatus
 from app.models.models import BaseOrder, MarketOrder, LimitOrder, Transaction, Balance
-from app.utils.order_helpers import util_cancel_order
 from app.utils.balance_helpers import spend_frozen_balance, unfreeze_remain_after_execution
 
 
@@ -42,9 +41,7 @@ class OrderMatcher:
         if executed:
             order.status = OrderStatus.EXECUTED
         else:
-            order_balance_to_cancel = self.eq_balance if self.is_buy else self.base_balance
-            util_cancel_order(self.db, order, order_balance_to_cancel, self.is_buy)
-            self.db.commit()
+            self.db.rollback()
             raise CustomAPIException(loc=["path", "order_id"],
                                      msg=f"Market Order has cancelled",
                                      type_error=ErrorType.ORDER_ID)

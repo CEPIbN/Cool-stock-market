@@ -32,7 +32,6 @@ def delete_user(user_id: UUID = Path(title="User Id"),
     user = validate_user(db, user_id)
 
     db.delete(user)
-    db.commit()
     return ResponseUser(id=user_id,
                         name=user.name,
                         role=user.role,
@@ -52,7 +51,6 @@ def add_instrument(instrument: InstrumentSchema,
                                  type_error=ErrorType.EXISTING_TICKER)
 
     db.add(Instrument(ticker=instrument.ticker, name=instrument.name))
-    db.commit()
     return Ok
 
 @router.delete("/instrument/{ticker}", response_model=Ok)
@@ -74,7 +72,6 @@ def delete_instrument(ticker: str = Path(pattern="^[A-Z]{2,10}$"),
     #     util_cancel_order(db, order, balance, is_buy)
 
     db.delete(instrument)
-    db.commit()
     return Ok
 
 

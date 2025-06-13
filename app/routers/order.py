@@ -84,7 +84,6 @@ def create_order(order_body : OrderBody,
     matched_orders = get_locked_and_sorted_all_matched_orders(order, matched_list, is_buy, db)
     # Исполнение ордера со встречными
     OrderMatcher(db, base_balance, eq_balance, balances_dict).match(order, matched_orders)
-    db.commit()
     return CreateOrderResponse(order_id=order.id)
 
 @router.delete("/{order_id}", response_model=Ok)
@@ -102,7 +101,6 @@ def cancel_order(order_id : UUID = Path(),
         util_cancel_order(db, order,
                           balances_dict.get(
                               (order.user_id, "RUB" if is_buy else order.ticker)), is_buy)
-        db.commit()
         return Ok
 
     if not order:
