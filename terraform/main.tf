@@ -40,12 +40,6 @@ resource "yandex_vpc_subnet" "subnet-d" {
   v4_cidr_blocks = ["10.0.3.0/24"]
 }
 
-resource "yandex_vpc_address" "addr" {
-  name = "project-ip"
-  external_ipv4_address {
-    zone_id = "ru-central1-d"
-  }
-}
 
 # PostgreSQL cluster
 resource "yandex_mdb_postgresql_cluster" "pg_cluster" {
@@ -212,7 +206,7 @@ resource "yandex_alb_virtual_host" "vhost" {
 
 resource "yandex_alb_load_balancer" "alb" {
   name       = "market-alb"
-  network_id = local.vpc_id
+  network_id = "enpi34v6kevu80k390ns"
 
   allocation_policy {
     location {
@@ -227,7 +221,7 @@ resource "yandex_alb_load_balancer" "alb" {
     endpoint {
       address {
         external_ipv4_address {
-          address = yandex_vpc_address.addr.external_ipv4_address[0].address
+          address = "158.160.137.177"
         }
       }
       ports = [443]
@@ -252,7 +246,7 @@ resource "yandex_alb_load_balancer" "alb" {
 
 # Output
 output "alb_external_ip" {
-  value = yandex_vpc_address.addr.external_ipv4_address[0].address
+  value = "158.160.137.177"
 }
 
 # Locals
