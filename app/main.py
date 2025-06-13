@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Depends, Request
-from fastapi.exceptions import RequestValidationError
+from fastapi.exceptions import RequestValidationError, HTTPException
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 from starlette.responses import JSONResponse
@@ -19,6 +19,7 @@ app.include_router(balance.router_balance)
 app.include_router(balance.router_admin_balance)
 
 app.add_exception_handler(RequestValidationError, custom_http_validation_exception_handler)
+app.add_exception_handler(HTTPException, custom_http_validation_exception_handler)
 
 @app.exception_handler(CustomAPIException)
 async def unhandled_exception_handler(request: Request, exc: CustomAPIException):
